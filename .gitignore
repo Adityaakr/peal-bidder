@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+!.env.example
+# Keys, mnemonics and agent state live outside the repository (~/.qore-peal-bidder/).
+*.secret.json
+.qore-peal-bidder/

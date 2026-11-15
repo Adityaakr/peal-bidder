@@ -1,0 +1,33 @@
+{
+  "provenance": "synthetic: hand-written in the shape of a Messages API response, to pin the agent's handling of each case. Live runs against claude-opus-5-5 are in test/claude.live.test.ts (skipped without ANTHROPIC_API_KEY); scripts/record-claude-fixtures.ts records real responses once the key exists.",
+  "name": "normal-bid",
+  "description": "Claude proposes a modest in-mandate bid; it passes unchanged.",
+  "auction_details": "The treasury sells fUSD for PEAL-T at one uniform price.",
+  "response": {
+    "id": "msg_fixture_normal",
+    "type": "message",
+    "role": "assistant",
+    "model": "claude-opus-5-5",
+    "stop_reason": "end_turn",
+    "stop_sequence": null,
+    "stop_details": null,
+    "content": [
+      {
+        "type": "text",
+        "text": "{\"action\":\"bid\",\"auction\":\"0x1111111111111111111111111111111111111111\",\"qty\":\"300000000000000000000\",\"tick\":12,\"rationale\":\"Fair price near the middle of the range, well inside the limits.\"}"
+      }
+    ],
+    "usage": {
+      "input_tokens": 2900,
+      "output_tokens": 140
+    }
+  },
+  "expect": {
+    "source": "claude",
+    "kind": "bid",
+    "auction": "0x1111111111111111111111111111111111111111",
+    "tick": 12,
+    "qty": "300000000000000000000",
+    "adjustments": []
+  }
+}
