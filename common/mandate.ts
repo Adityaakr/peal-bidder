@@ -1,11 +1,12 @@
 /**
  * PealMandate v1: what an owner allows its agent to do.
  *
- * The owner writes a mandate, signs its canonical bytes with QoreSign
- * `signMessage` (secp256k1 + ML-DSA-87) and seals the signed mandate with
- * QoreSeal to the agent's registered ML-KEM-1024 key. The agent opens it,
- * checks the signature against the owner's ML-DSA-87 key read from the chain,
- * and refuses anything that does not check out (see `agent/inbox.ts`).
+ * The owner writes a mandate and sends its canonical text as the body of a
+ * qore-pq-kit `messaging` instruction: signed with QoreSign (secp256k1 +
+ * ML-DSA-87) and sealed with QoreSeal to the agent's registered ML-KEM-1024
+ * key. The agent opens it, checks the signature against the owner's ML-DSA-87
+ * key read from the chain, and refuses anything that does not check out
+ * (see `agent/inbox.ts`).
  *
  * The mandate is advisory to the chain: the chain enforces the spending rule,
  * the scoped window and the allowance on its own. The mandate is how the
@@ -21,11 +22,8 @@ import { TESTNET_CHAIN_ID, TESTNET_EVM_CHAIN_ID } from "./network.ts";
 export const MANDATE_TYPE = "PealMandate";
 export const MANDATE_VERSION = 1;
 
-/** Prefix of the bytes the owner signs, so a mandate signature cannot be mistaken for any other message. */
-export const MANDATE_SIGN_PREFIX = "peal-bidder/mandate/v1\n";
-
-/** QoreSeal purpose of a sealed mandate. */
-export const MANDATE_SEAL_PURPOSE = "peal-bidder/mandate/v1";
+/** The instruction purpose a mandate travels under (qore-pq-kit `messaging`). */
+export const MANDATE_PURPOSE = "peal-bidder/mandate/v1";
 
 export const MAX_AUCTIONS = 16;
 export const MAX_INSTRUCTIONS_LENGTH = 2000;
@@ -223,17 +221,7 @@ export function decodeMandate(text: string): PealMandateV1 {
   return validateMandate(value);
 }
 
-/** The exact bytes the owner signs: a fixed prefix, then the canonical text. */
-export function mandateSignData(text: string): string {
-  return MANDATE_SIGN_PREFIX + text;
-}
-
 /** Hex SHA3-256 of the canonical text: the mandate's identity in receipts and logs. */
 export function mandateHash(text: string): string {
   return bytesToHex(sha3_256(utf8ToBytes(text)));
-}
-
-/** QoreSeal additional data of a sealed mandate: binds the envelope to the owner and the agent. */
-export function mandateSealAad(owner: string, agent: string): Uint8Array {
-  return utf8ToBytes(`${MANDATE_SEAL_PURPOSE}|${owner}|${agent}`);
 }

@@ -38,14 +38,13 @@ import { FileMandateStore } from "../agent/store.ts";
 import { SealedBidEncoder } from "../agent/bid-encoder.ts";
 import { SmartAccountExecutor } from "../agent/smart-account-executor.ts";
 import { fetchAuthNonce, resolveEvmAuthDigestVersion } from "@qorechain/sdk";
-import { MANDATE_SEAL_PURPOSE, buildMandate, encodeMandate, mandateSealAad, mandateSignData } from "../common/mandate.ts";
-import { sealMandate, signMandate } from "../owner-cli/mandate.ts";
+import { buildMandate } from "../common/mandate.ts";
+import { mandateFields, sealMandate, signMandate } from "../owner-cli/mandate.ts";
 import { chainRecipient, readCard } from "../owner-cli/recipient.ts";
 import { allowance } from "../owner-cli/chain.ts";
 import { Relayer, type Broadcaster } from "../relayer/relayer.ts";
-import { signMessage } from "@qorechain/qoresign";
-import { envelopeToText, seal } from "@qorechain/qoreseal";
-import { encodeSignedMandate } from "../common/signed.ts";
+import { envelopeToText } from "@qorechain/qoreseal";
+import { sealInstruction, signInstruction } from "qore-pq-kit/messaging";
 
 interface Check {
   item: string;
@@ -231,18 +230,12 @@ async function run(): Promise<void> {
     }),
   };
 
-  // Scene 3c: a forged mandate: text naming the real owner, signed with someone else's keys (the relayer's).
-  const forgedText = encodeMandate({ ...mandate, nonce: mandate.nonce + 1, maxPerBid: budget.toString() });
-  const forgedSig = signMessage({ chainId: net.chainId, signer: relayerAcc.cosmos, data: mandateSignData(forgedText), ...qoreSignKeys(relayerFull) });
-  const forgedEnvelope = envelopeToText(
-    seal({
-      chainId: net.chainId,
-      purpose: MANDATE_SEAL_PURPOSE,
-      recipients: [recipient],
-      plaintext: encodeSignedMandate({ v: 1, mandate: forgedText, signature: forgedSig }),
-      aad: mandateSealAad(owner.cosmos, agentAcc.cosmos),
-    }),
-  );
+  // Scene 3c: a forged mandate: the relayer's account signs a looser mandate as itself, then names the
+  // real owner as the sender. QoreSign will not sign in another account's name, so this is the forgery left.
+  const looser = { ...mandate, nonce: mandate.nonce + 1, maxPerBid: budget.toString() };
+  const relayerKeys = qoreSignKeys(relayerFull);
+  const forgedSigned = signInstruction({ fields: { ...mandateFields(looser), from: relayerAcc.cosmos }, classicalKey: relayerKeys.classicalKey, pqKey: relayerKeys.pqKey });
+  const forgedEnvelope = envelopeToText(sealInstruction({ ...forgedSigned, fields: { ...forgedSigned.fields, from: owner.cosmos } }, recipient));
   results.scene3c = await agent.receive(forgedEnvelope).then((r) => (r.ok ? { accepted: true } : { refused: r.code, message: r.message }));
 
   // Scene 3d: injected text in the auction description, read through a reader that appends it.
