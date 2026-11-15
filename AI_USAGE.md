@@ -49,3 +49,25 @@ From the approved design (decisions of 15 to 16 November 2026):
 **What is synthetic, stated plainly**: the Claude response fixtures are hand-written in the shape of API responses, because the API key is not available yet; each says so in its `provenance` field. `scripts/record-claude-fixtures.ts` will record real ones.
 
 **Human decisions in this step**: none beyond the design decisions above; the pull request awaits the owner's review.
+
+### 2026-11-16: owner CLI, relayer and dashboard (second pull request)
+
+**Brief**: after the first pull request was merged, build the owner CLI (mandate, link and revoke the agent key, spending rules, the agent's window, the fUSD approval), the relayer and the dashboard on the same branch; use qore-pq-kit by git tag rather than duplicating it.
+
+**What the worker agent did**
+
+- Took qore-pq-kit `v0.1.0` as a git dependency and used its hybrid `broadcast`, `sendEvm`, network settings and 0600 secret files. The kit has no smart-account module yet (it follows spike S2), so the link, rules and revoke messages are built here on the QoreChain SDK, checked offline with the SDK's own validators, and marked unproven.
+- Laid out the key split as files: the owner's folder holds the agent account's mnemonic; the agent's folder gets its classical key only, and the agent refuses to start from a file that holds a mnemonic.
+- Wrote the relayer with a policy check before it pays gas, and an outcome mapping in which `success=false` is final and a lost connection is "unknown" (counted as spent).
+- Wrote a local read-only dashboard over the verified receipts log, escaping every string and served with a no-script CSP.
+- Ran read-only checks against the testnet (no transaction): the owner-key lookup on a fresh account, the abstract-account routes, the explorer URL. Findings are in `docs/spikes.md`.
+- Created three throwaway testnet accounts (owner, agent account, relayer) under `~/.qore-peal-bidder/`, outside the repository, and asked for faucet funds through the orchestrator.
+
+**What went wrong and was fixed**
+
+- A fuzz property from the first pull request failed on a new random seed: at price zero there is no escrow bound, so "one more unit would not fit" is false. The code was right (the quantity is capped at uint128 and then by supply); the test now states the zero-price case.
+- The agent assumed the SDK exported `SpendingRule` and the message codecs at its root; they live under `qorechainTypes.abstractaccount`. The compiler caught it.
+- Writing a file with a new mode does not change the mode of an existing file, so one permissions test passed for the wrong reason until it used `chmod`.
+- The browser automation bridge was not reachable, so the dashboard was checked through its HTML rather than with a screenshot.
+
+**Human decisions in this step**: the owner (through the orchestrator) decided not to transfer QOR from the drill account before drill day, so the live runs wait for faucet funds; and the agent must not claim the faucet with scripted accounts.
