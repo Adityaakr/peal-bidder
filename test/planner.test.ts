@@ -86,6 +86,12 @@ describe("Claude request", () => {
     expect(doc.limits).toMatchObject({ max_tick: 40, max_per_bid: "100000000", bids_left: 5 });
   });
 
+  it("bounds the issuer's text before it reaches the model", () => {
+    const doc = JSON.parse(buildRequest({ ...input("x".repeat(100_000)), auctions: [auction({ details: "x".repeat(100_000), name: "n".repeat(1000) })] }).messages[0]?.content as string);
+    expect(doc.auctions[0].issuer_text_untrusted.details.length).toBeLessThan(4100);
+    expect(doc.auctions[0].issuer_text_untrusted.name.length).toBeLessThan(300);
+  });
+
   it("gives the model precomputed quantities that fit the limits", () => {
     const doc = JSON.parse(buildRequest(input("x")).messages[0]?.content as string);
     const rows = doc.auctions[0].max_qty_at_tick as { tick: number; max_qty: string }[];

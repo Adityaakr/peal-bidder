@@ -71,6 +71,9 @@ export interface InboxDeps {
   now: () => number;
 }
 
+/** A sealed mandate is about 12 KB of text; anything far larger is refused before it is decoded. */
+export const MAX_ENVELOPE_TEXT = 256 * 1024;
+
 /** The longest an instruction may live: the mandate's own limit plus a day for signing ahead of `notBefore`. */
 const MAX_INSTRUCTION_LIFETIME = MAX_LIFETIME_SECONDS + 86_400;
 
@@ -105,6 +108,7 @@ function wellFormed(s: unknown): s is SignedInstruction {
 export async function receiveMandate(envelopeText: string, deps: InboxDeps): Promise<AcceptedMandate | MandateRefusal> {
   const { network, identity } = deps;
 
+  if (envelopeText.length > MAX_ENVELOPE_TEXT) return refuse("ENVELOPE_MALFORMED", `the envelope is larger than ${MAX_ENVELOPE_TEXT} characters`);
   let envelope: Uint8Array;
   try {
     envelope = envelopeFromText(envelopeText.trim());

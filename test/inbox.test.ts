@@ -269,6 +269,10 @@ describe("receiveMandate (on qore-pq-kit messaging)", () => {
     expect(await receiveMandate(sealed(m), deps())).toMatchObject({ ok: false, code: "RECEIPT_KEY_MISMATCH" });
   });
 
+  it("refuses an oversized envelope before decoding it", async () => {
+    expect(await receiveMandate(`qoreseal:${"A".repeat(300 * 1024)}`, deps())).toMatchObject({ ok: false, code: "ENVELOPE_MALFORMED" });
+  });
+
   it("refuses text that is not an envelope", async () => {
     expect(await receiveMandate("hello", deps())).toMatchObject({ ok: false, code: "ENVELOPE_MALFORMED" });
     expect(await receiveMandate("qoreseal:!!!", deps())).toMatchObject({ ok: false, code: "ENVELOPE_MALFORMED" });

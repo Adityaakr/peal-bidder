@@ -66,7 +66,7 @@ describe("BidderAgent", () => {
     expect((executor as DryRunExecutor).submitted).toHaveLength(1);
     const check = verifyReceipts(sink.read(), agentKeys.receiptKey.publicKey);
     expect(check.ok).toBe(true);
-    if (check.ok) expect(check.receipts.map((r) => r.body.kind)).toEqual(["mandate-accepted", "decision", "result"]);
+    if (check.ok) expect(check.receipts.map((r) => r.body.kind)).toEqual(["mandate-accepted", "decision", "submission", "result"]);
   });
 
   it("idles without a mandate and logs a refused mandate", async () => {
@@ -100,6 +100,22 @@ describe("BidderAgent", () => {
     const second = setup({ sink: first.sink, executor: landed });
     expect(second.agent.state).toEqual(before);
     expect(second.agent.state.ledger.bids).toBe(2);
+  });
+
+  it("counts a bid as spent when the agent stopped after submitting it, and says so in the log", async () => {
+    const hang: BidExecutor = { submit: () => new Promise(() => {}) }; // the process dies before a result
+    const first = setup({ executor: hang });
+    await first.agent.receive(envelope());
+    void first.agent.step();
+    await new Promise((r) => setTimeout(r, 50));
+    const kinds = first.sink.read().map((l) => JSON.parse(l).body.kind);
+    expect(kinds).toEqual(["mandate-accepted", "decision", "submission"]);
+    const second = setup({ sink: first.sink, executor: landed });
+    expect(second.agent.state.ledger.bids).toBe(1);
+    const last = JSON.parse(first.sink.read().at(-1) as string).body;
+    expect(last).toMatchObject({ kind: "result", data: { status: "unknown", counted: true } });
+    // A third start does not count it twice.
+    expect(setup({ sink: first.sink, executor: landed }).agent.state.ledger.bids).toBe(1);
   });
 
   it("counts a submission with an unknown outcome as spent", async () => {

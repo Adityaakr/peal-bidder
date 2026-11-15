@@ -71,6 +71,10 @@ function summary(r: Receipt, txUrl: (h: string) => string): { tone: "ok" | "refu
         html: `Result: <strong>${escapeHtml(status)}</strong>${link}${typeof reason === "string" ? ` — ${escapeHtml(reason)}` : ""}`,
       };
     }
+    case "submission": {
+      const dec = field(d, "decision");
+      return { tone: "info", html: `Submitting: tick ${escapeHtml(String(field(dec ?? null, "tick")))}, outflow ${escapeHtml(fusd(String(field(dec ?? null, "outflow"))))}` };
+    }
     case "claim": {
       const status = String(field(d, "status"));
       const tx = field(d, "txHash");
