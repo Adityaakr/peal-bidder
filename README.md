@@ -4,7 +4,7 @@ An AI agent that bids in Peal sealed auctions for its owner, inside limits that 
 
 Entry in the **Post-Quantum AI Agents** category of QoreChain's *Build Before Q-Day* developer fest. It is one of three linked entries: [Peal Sealed Auction](https://github.com/Adityaakr/peal-sealed-auction) is the venue, [Peal Tender](https://github.com/Adityaakr/peal-tender) is the treasury that runs buybacks through it, and this repository is the participant. All three use [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit).
 
-> **Status (16 November 2026):** the offline core is built and tested: the mandate format, owner-side signing and sealing, agent-side verification against the owner's on-chain key, the policy clamp, the planner (Claude Opus 5.5 with a rule-based fallback) and the signed receipts log. The chain side (linked key, spending rules, scoped window, relayer) and the dashboard come next; see [Roadmap](#roadmap). Nothing is deployed yet.
+> **Status (16 November 2026):** built and tested offline: the mandate channel, the policy clamp, the planner (Claude Opus 5.5 with a rule-based fallback), the signed receipts log, the owner CLI, the relayer and the dashboard. The chain-side commands are written but **not yet run on the testnet**: the accounts are waiting for faucet funds, and the smart-account path (a linked key executing `commitBid` under a spending rule) waits for spike S2 ([docs/spikes.md](docs/spikes.md)). Until Peal Sealed Auction is deployed, the agent bids in dry-run mode. Nothing is deployed yet.
 
 ## How it stays inside its mandate
 
@@ -23,14 +23,14 @@ Entry in the **Post-Quantum AI Agents** category of QoreChain's *Build Before Q-
           │        and remaining budget, bid count, validity window
           ▼
           submit ─▶ the chain enforces again: spending rule on the owner's smart account,
-          │         scoped EVM window, fUSD allowance                              (next PR)
+          │         scoped EVM window, fUSD allowance        (written; unproven until S2)
           ▼
           receipt ─▶ hash-chained, ML-DSA-87-signed log of every decision
 ```
 
 Layers, from the outside in:
 
-1. **The chain** (next PR): a spending rule on the owner's account that bounds the agent's linked key (fUSD only, per-transaction and daily limits, only `commitBid` on the auction, an expiry); a scoped EVM window with target, transaction-count, value and duration limits; an fUSD allowance equal to the budget.
+1. **The chain** (written, not yet run on the testnet): a spending rule on the owner's account that bounds the agent's linked key (fUSD only, per-transaction and daily limits, only `commitBid` on the auction, an expiry); a scoped EVM window with target, transaction-count, value and duration limits; an fUSD allowance equal to the budget.
 2. **The key split**: the agent holds only its classical key and its decryption key. The owner holds the agent account's ML-DSA-87 key, so only the owner can open the agent's windows, link its key or change its rules. The agent cannot raise its own limits.
 3. **The mandate**: authenticated instructions. The agent refuses anything not signed by its owner's on-chain key.
 4. **The policy**: whatever the planner says, the bid fits the mandate.
@@ -49,8 +49,15 @@ Layers, from the outside in:
 | `agent/planner/` | Claude Opus 5.5 planner, rule-based planner, and `decide` (planner then policy) |
 | `agent/receipts.ts` | The receipts log: hash-chained, signed with the agent's ML-DSA-87 receipt key |
 | `agent/agent.ts` | The loop: receive, read auctions, plan, clamp, submit, receipt; rebuilds its ledger from the receipts after a restart |
+| `common/accounts.ts`, `common/home.ts` | Accounts and the key split: where each key lives, and the agent's file holding its classical key only |
+| `owner-cli/` | The owner's command line: accounts, key registration, the agent's recipient card, mandates, the agent's window, the fUSD approval, and the smart-account link, rules and revoke |
+| `owner-cli/smart-account.ts` | The spending rule derived from a mandate (fUSD only, per-bid and daily limits, only `commitBid` on the mandate's auctions) and the link, rules and revoke messages |
+| `agent/cli.ts`, `agent/identity.ts` | The agent's command line, and its own QoreSeal and receipt keys |
+| `agent/smart-account-executor.ts` | Signs a `MsgExecuteEVM` with the agent's linked key, for the relayer |
+| `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
+| `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 119 offline tests and 3 live planner checks (Vitest and fast-check); see below |
+| `test/` | 155 offline tests and 3 live planner checks (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -63,6 +70,27 @@ pnpm typecheck
 pnpm demo:offline   # the mandate channel and planner end to end, with throwaway keys
 ```
 
+### The owner and the agent
+
+Keys and state live outside the repository, in `~/.qore-peal-bidder/` (or `QORE_BIDDER_HOME`): `owner/` for the owner and `agent/` for the agent. In a real deployment those are two machines, and the agent is only given `agent/`. [docs/runbook.md](docs/runbook.md) walks through every step on the testnet. In short:
+
+```sh
+pnpm owner init                       # owner, agent-account and relayer accounts; the agent gets its classical key only
+pnpm agent init                       # the agent makes its QoreSeal and receipt keys; writes agent/public.json
+# fund the three accounts from the faucet, then:
+pnpm owner register                   # ML-DSA-87 keys on chain
+pnpm owner register-agent             # the agent's ML-KEM key on chain, and its signed recipient card
+pnpm owner approve --spender 0x<auction> --amount 500
+pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40   # spending rule + linked key (S2)
+pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 \
+  --instructions "Take part in the buyback at a fair price." --deliver
+pnpm agent receive                    # verified against the owner's key on chain
+pnpm agent run --auctions auctions.json --rounds 3
+pnpm dashboard                        # http://127.0.0.1:8788
+```
+
+`--offline` on `owner mandate` and `agent receive` runs the same flow with no chain: the agent then checks the owner's signature against `agent/owner-public.json` instead of the chain, and says so in its output.
+
 The planner uses Claude only when `ANTHROPIC_API_KEY` is set in the environment. The key is never read from or written to a file in this repository. Without it, the rule-based planner runs. With it, `pnpm test` also runs three live planner checks (a few cents), and `pnpm record:claude` records real responses into `test/fixtures/claude-recorded/` for the replay tests.
 
 ## Tests
@@ -72,6 +100,10 @@ The planner uses Claude only when `ANTHROPIC_API_KEY` is set in the environment.
 - **Policy** (`test/policy.test.ts`): every clamp and skip rule, junk proposals, and a fuzz property over 2,000 random planner outputs and ledgers that no bid ever leaves the mandate.
 - **Planner** (`test/planner.test.ts`): the request (model, effort, structured output, fallbacks), the untrusted-text framing, and fixtures including **prompt-injection** cases: an "ignore your mandate" override that the model resists, one it obeys toward another auction (skipped, never redirected), one it obeys on size and tick (clamped), and a fake owner tag. Refusal, prose, schema-violating and truncated answers fall back to the rules.
 - **Receipts** and **agent loop** (`test/receipts.test.ts`, `test/agent.test.ts`): tampering, deletion, reordering, a wrong key, file permissions, restart recovery, unknown outcomes counted as spent.
+- **Key split** (`test/accounts.test.ts`): the SDK and QoreSign derive the same keys; secret files are 0600 and never overwritten; the agent's file holds no mnemonic, and the agent refuses to run from one that does; `public.json` holds only public halves.
+- **Smart account** (`test/smart-account.test.ts`): the rule a mandate produces passes the SDK's own validators; the link is one owner-signed `[MsgUpdateSpendingRules, MsgRegisterAuthenticator]` with an EIP-191 proof by the agent's key, linked by its EVM address with the `evm` permission only.
+- **Relayer** (`test/relayer.test.ts`): the agent's signature over the v1 and v2 execution digests recovers to the agent's address; the relayer refuses other targets, accounts, relayers, native value and oversized gas without broadcasting; `success=false` is a final refusal with the chain's reason; a lost connection is "unknown" (counted as spent).
+- **CLI and dashboard** (`test/cli.test.ts`, `test/dashboard.test.ts`): the owner-to-agent flow through the files, restart and replay; fUSD amounts parsed exactly; untrusted strings escaped on the page.
 
 The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of API responses (each says so in its `provenance` field), because the owner's API key is not available yet. Recorded responses will join them in `test/fixtures/claude-recorded/`.
 
@@ -79,10 +111,18 @@ The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of
 
 QoreChain testnet `qorechain-diana`, EVM chain id 9800. Quote and budget token: the fest's fUSD (`0x97143B771D34ddb9130b807b135Ae675A5a963CA`, 6 decimals). Contract addresses will be listed here when deployed.
 
+Testnet accounts (throwaway, created 16 November 2026, keys outside the repository; not funded yet):
+
+| Role | Address |
+|---|---|
+| Owner | `qor14ndj6q3zp7hku9a4hkjnmhvsk3kegf46g002j5` (`0xaCdB2d02220FAf6e17B5bdA53DDd90B46d9426BA`) |
+| Agent account | `qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur` (`0xb7Bab569E46Ea2a8082059D28E72CeE263Fa2921`) |
+| Relayer | `qor16tsewlj6jpt4v2esmrhuk7z2xems6e09z5rpzc` (`0xD2E1977E5A9057562b30D8EFCB784a36770D65E5`) |
+
 ## Roadmap
 
-1. ~~Mandate format, signing and sealing, verification, policy, planner, receipts~~ (this PR).
-2. Owner CLI: create and seal a mandate from the owner's keys, link and revoke the agent key, set spending rules, open and close the agent's window, approve fUSD. Relayer for `MsgExecuteEVM`. Dashboard of mandates, decisions and refusals.
+1. ~~Mandate format, signing and sealing, verification, policy, planner, receipts~~ (PR 1).
+2. ~~Owner CLI, relayer, dashboard~~ (PR 2), written and tested offline; first live run once the accounts are funded.
 3. The smart-account path depends on spike S2 in qore-pq-kit (a linked key executing an EVM call under a spending rule has no recorded end-to-end run). If it fails, bids go from the agent's own account inside owner-opened scoped windows, with the allowance and the auction's caps ([docs/spikes.md](docs/spikes.md)).
 4. Integration with Peal Sealed Auction's deployed contracts (expected 22 to 23 November): bid sealing to the committee with qore-pq-kit's `threshold` module, and a testnet run with one landed bid and each refusal.
 
@@ -95,6 +135,8 @@ The design comes from the author's own earlier project, **Peal** (private, start
 ## Credits
 
 - [@qorechain/qoresign](https://www.npmjs.com/package/@qorechain/qoresign) 0.2.0 (hybrid message signatures) and [@qorechain/qoreseal](https://www.npmjs.com/package/@qorechain/qoreseal) 0.1.0 (ML-KEM-1024 envelopes), QoreChain's kits.
+- [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit) `v0.1.0`, by git tag: network settings, hybrid-signed broadcasts, EVM transactions and secret files.
+- [@qorechain/sdk](https://www.npmjs.com/package/@qorechain/sdk) and [@qorechain/evm](https://www.npmjs.com/package/@qorechain/evm) 0.14.0: windows, linked keys, spending rules, `MsgExecuteEVM`.
 - [@anthropic-ai/sdk](https://www.npmjs.com/package/@anthropic-ai/sdk) for Claude; [viem](https://viem.sh) for the EVM calls; [@noble/hashes](https://github.com/paulmillr/noble-hashes) and [@scure/bip39](https://github.com/paulmillr/scure-bip39); [Vitest](https://vitest.dev) and [fast-check](https://fast-check.dev) for tests.
 
 How AI was used to build this: [AI_USAGE.md](AI_USAGE.md). Security assumptions and what is not protected: [THREAT_MODEL.md](THREAT_MODEL.md).

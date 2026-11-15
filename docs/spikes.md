@@ -20,3 +20,15 @@ No testnet calls yet from this repository. Facts relied on, from the approved de
 - `pqcKeyStatus(address)` (selector `0x850dfe51`) at `0x…0a02` returned 2,752 bytes for a registered account: `(bool, uint8, bytes, bool)` with a 2,592-byte key. `test/keysource.test.ts` checks the decoder against exactly that layout.
 - fUSD is `0x97143B771D34ddb9130b807b135Ae675A5a963CA`, 6 decimals, denom `erc20:0x97143B771D34ddb9130b807b135Ae675A5a963CA`.
 - PQC params: `allow_classical_fallback: false`, `hybrid_signature_mode_name: required`.
+
+### 2026-11-15 (UTC): read-only checks from this repository
+
+Run: `pnpm agent receive` (default, chain mode) and `pnpm owner status` against fresh, unfunded throwaway accounts made in a scratch folder; and one raw `eth_call`. No transaction was sent.
+
+- **`pqcKeyStatus` for an account with no key** returns data, not an empty reply: 160 bytes at block 10,160,506, the words `(false, 0, offset 0x80, false)` and a zero-length key. `agent/keysource.ts` decodes it and refuses the mandate with `OWNER_KEY_UNAVAILABLE (KEY_NOT_REGISTERED)`, as intended. (Empty data is still refused, as `KEY_UNAVAILABLE`.)
+- **The abstract-account routes answer 404 for an account the chain has never seen** (`/qorechain/abstractaccount/v1/accounts/{addr}/authenticators` and `/spending_rules`: "account … not found"). `owner status` reports the error instead of failing.
+- **The SDK 0.14.0 has no explorer URL for the testnet** (`explorerTxUrl` throws). The dashboard links transactions to the REST route `/cosmos/tx/v1beta1/txs/{hash}`, or to `QORE_EXPLORER_TX_URL` when set.
+
+### Waiting on funds
+
+The owner, agent-account and relayer accounts (README, Network) are not funded yet. The request went to the owner on 15 November (UTC); funds come from the owner's faucet sign-in. Until then the commands that send transactions (`register`, `register-agent`, `window`, `approve`, `link`, `rules`, `revoke`, the relayer) are tested offline only.

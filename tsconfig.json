@@ -13,5 +13,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["common", "agent", "owner-cli", "scripts", "test", "vitest.config.ts"]
+  "include": ["common", "agent", "owner-cli", "relayer", "dashboard", "scripts", "test", "vitest.config.ts"]
 }

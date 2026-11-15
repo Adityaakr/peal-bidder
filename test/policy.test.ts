@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import fc from "fast-check";
-import { costCeil, maxQtyForEscrow, priceAt } from "../agent/auction.ts";
+import { UINT128_MAX, costCeil, maxQtyForEscrow, priceAt } from "../agent/auction.ts";
 import { EMPTY_LEDGER, clamp, recordBid, type Ledger, type PolicyContext } from "../agent/policy.ts";
 import { AUCTION_A, AUCTION_B, NOW, newAccount, newAgent, sampleMandate } from "./helpers.ts";
 import { auction, auctionB } from "./auctions.ts";
@@ -46,7 +46,9 @@ describe("auction arithmetic", () => {
           const q = maxQtyForEscrow(a, tick, cap);
           const p = priceAt(a, tick);
           expect(costCeil(q, p, saleDecimals)).toBeLessThanOrEqual(cap);
-          expect(costCeil(q + 1n, p, saleDecimals)).toBeGreaterThan(cap);
+          // At price zero escrow never binds: the quantity is capped at uint128 instead.
+          if (p === 0n) expect(q).toBe(UINT128_MAX);
+          else if (q < UINT128_MAX) expect(costCeil(q + 1n, p, saleDecimals)).toBeGreaterThan(cap);
         },
       ),
     );
