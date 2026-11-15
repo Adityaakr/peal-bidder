@@ -23,6 +23,11 @@ export interface EncodedBid {
   gasLimit: bigint;
 }
 
+/** Something that can send one contract call for the agent (both executors are). */
+export interface CallSender {
+  sendCall(call: EncodedBid): Promise<SubmitResult>;
+}
+
 /** Turns a clamped decision into the auction call (seal to the committee, encode `commitBid`). */
 export interface BidEncoder {
   encode(decision: BidDecision, mandate: PealMandateV1): Promise<EncodedBid>;
@@ -76,7 +81,7 @@ export interface SmartAccountExecutorDeps {
   digestVersion: () => Promise<EvmAuthDigestVersion>;
 }
 
-export class SmartAccountExecutor implements BidExecutor {
+export class SmartAccountExecutor implements BidExecutor, CallSender {
   private readonly signer: ReturnType<typeof localSigner>;
 
   constructor(private readonly deps: SmartAccountExecutorDeps) {
@@ -87,6 +92,11 @@ export class SmartAccountExecutor implements BidExecutor {
   async build(decision: BidDecision, mandate: PealMandateV1): Promise<EncodeObject> {
     const bid = await this.deps.encoder.encode(decision, mandate);
     if (bid.to.toLowerCase() !== decision.auction) throw new Error("the encoder targets another contract than the decision");
+    return this.sign(bid);
+  }
+
+  /** Sign one call with the linked key. */
+  async sign(bid: EncodedBid): Promise<EncodeObject> {
     return buildMetaMaskExecuteEvm({
       provider: this.signer,
       address: this.signer.address,
@@ -110,6 +120,21 @@ export class SmartAccountExecutor implements BidExecutor {
       // Nothing was signed for the chain yet: nothing can have executed.
       return { status: "refused", reason: `not sent: ${(err as Error).message}` };
     }
+    return this.relay(m);
+  }
+
+  /** Any other call through the owner's account (for example `claim`), under the same spending rule. */
+  async sendCall(call: EncodedBid): Promise<SubmitResult> {
+    let m: EncodeObject;
+    try {
+      m = await this.sign(call);
+    } catch (err) {
+      return { status: "refused", reason: `not sent: ${(err as Error).message}` };
+    }
+    return this.relay(m);
+  }
+
+  private async relay(m: EncodeObject): Promise<SubmitResult> {
     const r = await this.deps.relay.relay(m);
     return { status: r.status, ...(r.txHash ? { txHash: r.txHash } : {}), ...(r.reason ? { reason: r.reason } : {}) };
   }

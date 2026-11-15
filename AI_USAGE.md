@@ -89,3 +89,20 @@ From the approved design (decisions of 15 to 16 November 2026):
 - A first draft of the end-to-end test file was left with placeholder blocks; the agent noticed before running it and rewrote the file.
 
 **Human decisions in this step**: none new; the live runs stay parked on faucet funds, as decided.
+
+### 2026-11-16: claims and the testnet demo script (fourth pull request)
+
+**Brief**: next offline slice after the third pull request was merged.
+
+**What the worker agent did**
+
+- Gave both executors a generic `sendCall` and wrote the claims module: the agent's bids read from the chain, and `claim` for each unclaimed one once the auction is settled, failed or cancelled, with a receipt per claim. The spending rule now also allows `claim` (permissionless, pays the bidder).
+- Wrote `scripts/demo-testnet.ts` for the video's scenes (a landed bid; over-limit, off-target and forged refusals; an injected instruction clamped), with a read-only `--check` that lists every precondition. It ran read-only against the testnet and reports, correctly, that nothing is funded or registered yet.
+
+**What went wrong and was fixed**
+
+- The first draft of the demo's forged-mandate scene signed the mandate twice and spliced the texts together; the agent rewrote it to sign the real owner's mandate text with another account's keys, which is the attack the scene is meant to show.
+
+**Not tested**: the demo script's scenes need funded accounts, spike S2 and a deployed auction; only `--check` has run. The pieces it composes are tested on their own.
+
+**Human decisions in this step**: none new.

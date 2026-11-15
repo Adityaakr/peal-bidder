@@ -16,7 +16,8 @@
     "owner": "tsx owner-cli/main.ts",
     "agent": "tsx agent/main.ts",
     "relayer": "tsx relayer/server.ts",
-    "dashboard": "tsx dashboard/server.ts"
+    "dashboard": "tsx dashboard/server.ts",
+    "demo:testnet": "tsx scripts/demo-testnet.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0",

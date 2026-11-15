@@ -22,7 +22,7 @@ import {
 } from "@qorechain/sdk";
 import { hexToBytes, toFunctionSelector, type Hex } from "viem";
 import type { PealMandateV1 } from "../common/mandate.ts";
-import { COMMIT_BID_SIGNATURE } from "../agent/auction-abi.ts";
+import { CLAIM_SIGNATURE, COMMIT_BID_SIGNATURE } from "../agent/auction-abi.ts";
 
 export type SpendingRule = ReturnType<typeof qorechainTypes.abstractaccount.SpendingRule.fromPartial>;
 
@@ -44,7 +44,8 @@ export function selectorOf(signatureOrSelector: string): Hex {
  * The spending rule for a mandate:
  * - the key may move only the quote token (fUSD), as `erc20/<contract>`;
  * - at most `maxPerBid` per execution and `dailyLimit` (default: the budget) per UTC day;
- * - with call data, only `commitBid` on the mandate's auctions.
+ * - with call data, only `commitBid` and `claim` on the mandate's auctions
+ *   (`claim` is permissionless and pays the bidder, so it moves nothing out).
  *
  * From chain v3.2.2 the EVM lane counts the measured outflow of a call,
  * including allowance changes of a listed ERC-20.
@@ -60,7 +61,7 @@ export function spendingRuleFor(mandate: PealMandateV1, commitBidSelector: Hex, 
     perTxLimit: "0",
     allowedDenoms: [denom],
     enabled: true,
-    allowedEvmCalls: mandate.auctions.map((a) => `${a}/${commitBidSelector}`),
+    allowedEvmCalls: mandate.auctions.flatMap((a) => [`${a}/${commitBidSelector}`, `${a}/${toFunctionSelector(CLAIM_SIGNATURE)}`]),
     denomLimits: [{ denom, perTxLimit: mandate.maxPerBid, dailyLimit: daily.toString() }],
   };
   validateSpendingRules([rule]);

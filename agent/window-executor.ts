@@ -13,7 +13,7 @@ import { fetchEvmWindow } from "@qorechain/sdk";
 import type { Hex } from "viem";
 import type { PealMandateV1 } from "../common/mandate.ts";
 import type { BidDecision, BidExecutor, SubmitResult } from "./agent.ts";
-import type { BidEncoder } from "./smart-account-executor.ts";
+import type { BidEncoder, CallSender, EncodedBid } from "./smart-account-executor.ts";
 
 export interface WindowView {
   live: boolean;
@@ -34,10 +34,10 @@ export interface WindowExecutorDeps {
 /** Errors that leave it open whether the transaction reached the chain. */
 const MAYBE_SENT = /timeout|timed out|ECONNRESET|socket hang up|fetch failed|network|ETIMEDOUT|EPIPE/i;
 
-export class WindowExecutor implements BidExecutor {
+export class WindowExecutor implements BidExecutor, CallSender {
   constructor(private readonly deps: WindowExecutorDeps) {}
 
-  async submit(decision: BidDecision, mandate: PealMandateV1): Promise<SubmitResult> {
+  private async windowRefusal(target: string): Promise<SubmitResult | undefined> {
     let w: WindowView;
     try {
       w = await this.deps.window();
@@ -45,15 +45,32 @@ export class WindowExecutor implements BidExecutor {
       return { status: "refused", reason: `not sent: the window cannot be read (${(err as Error).message})` };
     }
     if (!w.live || w.remainingTxs <= 0n) return { status: "refused", reason: "not sent: no live window (the owner opens it)" };
-    if (!w.allowedTargets.map((t) => t.toLowerCase()).includes(decision.auction)) {
-      return { status: "refused", reason: "not sent: the window does not admit this auction" };
+    if (!w.allowedTargets.map((t) => t.toLowerCase()).includes(target.toLowerCase())) {
+      return { status: "refused", reason: "not sent: the window does not admit this contract" };
     }
-    let tx: { to: Hex; data: Hex; gasLimit: bigint };
+    return undefined;
+  }
+
+  async submit(decision: BidDecision, mandate: PealMandateV1): Promise<SubmitResult> {
+    const refused = await this.windowRefusal(decision.auction);
+    if (refused) return refused;
+    let tx: EncodedBid;
     try {
       tx = await this.deps.encoder.encode(decision, mandate);
     } catch (err) {
       return { status: "refused", reason: `not sent: ${(err as Error).message}` };
     }
+    return this.send(tx);
+  }
+
+  /** Any other call from the agent's own account (for example `claim`), inside the window. */
+  async sendCall(call: EncodedBid): Promise<SubmitResult> {
+    const refused = await this.windowRefusal(call.to);
+    if (refused) return refused;
+    return this.send(call);
+  }
+
+  private async send(tx: EncodedBid): Promise<SubmitResult> {
     let hash: Hex;
     try {
       hash = await this.deps.send({ to: tx.to, data: tx.data, gas: tx.gasLimit });
@@ -63,7 +80,7 @@ export class WindowExecutor implements BidExecutor {
     }
     try {
       const status = await this.deps.wait(hash);
-      return status === "success" ? { status: "landed", txHash: hash } : { status: "refused", txHash: hash, reason: "the commit reverted" };
+      return status === "success" ? { status: "landed", txHash: hash } : { status: "refused", txHash: hash, reason: "the call reverted" };
     } catch (err) {
       return { status: "unknown", txHash: hash, reason: `no receipt yet: ${(err as Error).message}` };
     }

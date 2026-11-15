@@ -56,11 +56,13 @@ Layers, from the outside in:
 | `agent/smart-account-executor.ts` | Signs a `MsgExecuteEVM` with the agent's linked key, for the relayer |
 | `agent/bid-encoder.ts` | Verifies the auction's committee (qore-pq-kit `verifyMember`), checks the escrow with the contract, seals the bid (`sealSlot`) and encodes `commitBid` |
 | `agent/chain-auction.ts`, `agent/auction-abi.ts` | Reads auctions from the chain; the small slice of Peal Sealed Auction's interface the agent uses, written out by hand |
+| `agent/claims.ts` | After the auction: the agent's bids read from the chain (`BidCommitted`, `getBid`, `allocationOf`), and `claim` for each unclaimed one, with a receipt per claim |
+| `scripts/demo-testnet.ts` | The testnet demo: one landed bid and each refusal, with transaction hashes; `--check` lists what is in place and what is missing (read-only) |
 | `agent/window-executor.ts`, `agent/executors.ts` | The fallback executor (the agent's own account inside an owner-opened window) and the `--executor` choice |
 | `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
 | `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 173 offline tests and 3 live planner checks (Vitest and fast-check); see below |
+| `test/` | 177 offline tests and 3 live planner checks (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -89,7 +91,10 @@ pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-t
   --instructions "Take part in the buyback at a fair price." --deliver
 pnpm agent receive                    # verified against the owner's key on chain
 pnpm agent run --executor smart-account --rounds 3   # or --executor window (fallback), or dry-run (default)
+pnpm agent bids                       # after the close: the agent's bids and what they won
+pnpm agent claim --executor smart-account
 pnpm dashboard                        # http://127.0.0.1:8788
+pnpm demo:testnet --check --auction 0x<auction>   # what the testnet demo still needs (read-only)
 ```
 
 `--offline` on `owner mandate` and `agent receive` runs the same flow with no chain: the agent then checks the owner's signature against `agent/owner-public.json` instead of the chain, and says so in its output.
@@ -109,6 +114,7 @@ The planner uses Claude only when `ANTHROPIC_API_KEY` is set in the environment.
 - **Bid encoding** (`test/bid-encoder.test.ts`): against a fake chain with real member keys and signed cards, a sealed bid opens with any 2 of the 3 members' shares and not with one; a member cannot open another's envelope; envelopes are bound to the bidder and seq; the calldata never holds the bid in clear; a substituted ML-KEM key over REST and an escrow the contract disagrees with are refused; issuer text is kept only when it matches the metadata hash.
 - **Local end to end** (`test/e2e-local.test.ts`): mandate to landed bids through planner, policy, encoder, linked-key signature and relayer, with the chain-side rule **simulated**; with the policy bypassed, an over-limit bid is refused by the (simulated) rule, and the daily limit holds.
 - **Fallback executor** (`test/window-executor.test.ts`): nothing is sent without a live window that admits the auction; reverted, refused and unknown outcomes are told apart.
+- **Claims** (`test/claims.test.ts`): only the bidder's own bids (a node returning someone else's is caught by `getBid`), each unclaimed bid claimed once with a receipt, nothing claimed before the auction is settled, failed or cancelled.
 - **CLI and dashboard** (`test/cli.test.ts`, `test/dashboard.test.ts`): the owner-to-agent flow through the files, restart and replay; fUSD amounts parsed exactly; untrusted strings escaped on the page.
 
 The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of API responses (each says so in its `provenance` field), because the owner's API key is not available yet. Recorded responses will join them in `test/fixtures/claude-recorded/`.
@@ -130,8 +136,9 @@ Testnet accounts (throwaway, created 16 November 2026, keys outside the reposito
 1. ~~Mandate format, signing and sealing, verification, policy, planner, receipts~~ (PR 1).
 2. ~~Owner CLI, relayer, dashboard~~ (PR 2), written and tested offline; first live run once the accounts are funded.
 3. ~~Bid sealing and encoding for Peal Sealed Auction; chain reader; fallback window executor~~ (PR 3), tested offline against a fake chain.
-4. The smart-account path depends on spike S2 in qore-pq-kit (a linked key executing an EVM call under a spending rule has no recorded end-to-end run). If it fails, bids go from the agent's own account inside owner-opened scoped windows, with the allowance and the auction's caps ([docs/spikes.md](docs/spikes.md)).
-5. A testnet run against Peal Sealed Auction's deployed contracts (expected 22 to 23 November): one landed bid and each refusal, with transaction hashes.
+4. ~~Claims after settlement; the testnet demo script~~ (PR 4); the demo's `--check` runs read-only today.
+5. The smart-account path depends on spike S2 in qore-pq-kit (a linked key executing an EVM call under a spending rule has no recorded end-to-end run). If it fails, bids go from the agent's own account inside owner-opened scoped windows, with the allowance and the auction's caps ([docs/spikes.md](docs/spikes.md)).
+6. `pnpm demo:testnet` against Peal Sealed Auction's deployed contracts (expected 22 to 23 November): one landed bid and each refusal, with transaction hashes.
 
 ## Prior work
 
