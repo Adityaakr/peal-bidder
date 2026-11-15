@@ -17,6 +17,7 @@ import { AUCTION_A, AUCTION_B, newAccount, newAgent, sampleMandate } from "./hel
 const owner = newAccount();
 const agentKeys = newAgent();
 const SELECTOR = selectorOf(COMMIT_BID_SIGNATURE);
+const CLAIM = toFunctionSelector("claim(uint256)");
 
 function decode<T>(m: { typeUrl: string; value: unknown }, codec: { fromPartial(x: unknown): T }): T {
   return codec.fromPartial(m.value);
@@ -32,7 +33,7 @@ describe("spending rule for a mandate", () => {
       perTxLimit: "0",
       dailyLimit: "0",
       allowedDenoms: [denom],
-      allowedEvmCalls: [`${AUCTION_A}/${SELECTOR}`, `${AUCTION_B}/${SELECTOR}`],
+      allowedEvmCalls: [`${AUCTION_A}/${SELECTOR}`, `${AUCTION_A}/${CLAIM}`, `${AUCTION_B}/${SELECTOR}`, `${AUCTION_B}/${CLAIM}`],
       denomLimits: [{ denom, perTxLimit: "100000000", dailyLimit: "500000000" }],
     });
     expect(ruleBoundsEveryDenom(rule)).toBe(true);

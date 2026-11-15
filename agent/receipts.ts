@@ -36,7 +36,7 @@ export function receiptKeyHash(publicKey: Uint8Array): string {
   return bytesToHex(sha3_256(publicKey));
 }
 
-export type ReceiptKind = "mandate-accepted" | "mandate-refused" | "decision" | "submission" | "result";
+export type ReceiptKind = "mandate-accepted" | "mandate-refused" | "decision" | "submission" | "result" | "claim";
 
 export interface ReceiptBody {
   v: 1;

@@ -77,7 +77,70 @@ export const sealedAuctionAbi = [
     ],
     outputs: [{ name: "bidId", type: "uint256" }],
   },
+  {
+    type: "function",
+    name: "getBid",
+    stateMutability: "view",
+    inputs: [{ name: "bidId", type: "uint256" }],
+    outputs: [
+      {
+        name: "",
+        type: "tuple",
+        components: [
+          { name: "bidder", type: "address" },
+          { name: "seq", type: "uint32" },
+          { name: "status", type: "uint8" },
+          { name: "exclusion", type: "uint8" },
+          { name: "shareMask", type: "uint8" },
+          { name: "bondBurned", type: "bool" },
+          { name: "claimed", type: "bool" },
+          { name: "quantity", type: "uint128" },
+          { name: "tick", type: "uint16" },
+          { name: "escrow", type: "uint256" },
+          { name: "ct", type: "bytes32" },
+          { name: "keyHash", type: "bytes32" },
+        ],
+      },
+    ],
+  },
+  {
+    type: "function",
+    name: "allocationOf",
+    stateMutability: "view",
+    inputs: [{ name: "bidId", type: "uint256" }],
+    outputs: [{ name: "", type: "uint256" }],
+  },
+  { type: "function", name: "clearingPrice", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  {
+    type: "function",
+    name: "claim",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "bidId", type: "uint256" }],
+    outputs: [
+      { name: "tokens", type: "uint256" },
+      { name: "refund", type: "uint256" },
+    ],
+  },
+  {
+    type: "event",
+    name: "BidCommitted",
+    inputs: [
+      { name: "bidId", type: "uint256", indexed: true },
+      { name: "bidder", type: "address", indexed: true },
+      { name: "seq", type: "uint32", indexed: false },
+      { name: "ct", type: "bytes32", indexed: false },
+      { name: "keyHash", type: "bytes32", indexed: false },
+      { name: "shareHashes", type: "bytes32[]", indexed: false },
+      { name: "envelopes", type: "bytes[]", indexed: false },
+      { name: "escrow", type: "uint256", indexed: false },
+    ],
+  },
 ] as const;
+
+/** `SealedAuction.BidStatus` and `SealedAuction.Exclusion`. */
+export const BID_STATUS = ["Pending", "Opened", "Excluded", "Unopenable"] as const;
+export const EXCLUSION = ["None", "Malformed", "BelowMinimum", "OverAddressCap", "EscrowShort", "NoKey", "NoKeyAfterAllReleases"] as const;
+export const CLAIM_SIGNATURE = "claim(uint256)";
 
 export const committeeRegistryAbi = [
   {

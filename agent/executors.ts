@@ -16,7 +16,7 @@ import type { Network } from "../common/network.ts";
 import { DryRunExecutor, type BidExecutor } from "./agent.ts";
 import { SealedBidEncoder } from "./bid-encoder.ts";
 import type { AgentIdentity } from "./identity.ts";
-import { HttpRelayClient, SmartAccountExecutor } from "./smart-account-executor.ts";
+import { HttpRelayClient, SmartAccountExecutor, type CallSender } from "./smart-account-executor.ts";
 import { WindowExecutor, restWindow } from "./window-executor.ts";
 
 export type ExecutorKind = "dry-run" | "smart-account" | "window";
@@ -25,10 +25,15 @@ export type ExecutorKind = "dry-run" | "smart-account" | "window";
 const MAX_FEE_PER_GAS = 200_000_000_000n;
 const MAX_PRIORITY_FEE_PER_GAS = 12_500_000_000n;
 
+/** Whose account sends the commit (and so is `msg.sender`, the bidder): the owner's, or the agent's own. */
+export function bidderFor(kind: ExecutorKind, id: AgentIdentity): Address {
+  return (kind === "window" ? id.account.evm : parseAddress(id.account.owner).hex) as Address;
+}
+
 export async function makeExecutor(
   kind: ExecutorKind,
   ctx: { id: AgentIdentity; net: Network; relayerUrl?: string; gasLimit?: bigint },
-): Promise<BidExecutor> {
+): Promise<BidExecutor & Partial<CallSender>> {
   if (kind === "dry-run") return new DryRunExecutor();
   const { id, net } = ctx;
   const evmChain = {

@@ -71,6 +71,15 @@ function summary(r: Receipt, txUrl: (h: string) => string): { tone: "ok" | "refu
         html: `Result: <strong>${escapeHtml(status)}</strong>${link}${typeof reason === "string" ? ` — ${escapeHtml(reason)}` : ""}`,
       };
     }
+    case "claim": {
+      const status = String(field(d, "status"));
+      const tx = field(d, "txHash");
+      const link = typeof tx === "string" ? ` <a href="${escapeHtml(txUrl(tx))}">${escapeHtml(tx.slice(0, 16))}…</a>` : "";
+      return {
+        tone: status === "landed" ? "ok" : status === "refused" ? "refused" : "info",
+        html: `Claim bid ${escapeHtml(String(field(d, "bidId")))} (${escapeHtml(String(field(d, "bidStatus")))}, ${escapeHtml(String(field(d, "allocation")))} won): <strong>${escapeHtml(status)}</strong>${link}`,
+      };
+    }
     default:
       return { tone: "info", html: escapeHtml(r.body.kind) };
   }

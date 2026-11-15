@@ -7,6 +7,8 @@
  *                                           plan and bid; --rounds N --interval S. Auctions come from the
  *                                           chain unless --auctions names a file. The default executor is dry-run.
  *   pnpm agent status                       the active mandate and what it has committed
+ *   pnpm agent bids [--path smart-account|window]       the agent's bids on the mandate's auctions, from the chain
+ *   pnpm agent claim --executor smart-account|window    claim every unclaimed bid of a finished auction
  *   pnpm agent receipts                     verify the receipts log
  *
  * --offline (receive): check the owner's signature against owner-public.json
@@ -21,7 +23,9 @@ import { agentPaths, bidderHome } from "../common/home.ts";
 import { network } from "../common/network.ts";
 import { BidderAgent, DryRunExecutor, type BidExecutor } from "./agent.ts";
 import { ChainAuctionReader } from "./chain-auction.ts";
-import { makeExecutor, type ExecutorKind } from "./executors.ts";
+import { bidderFor, makeExecutor, type ExecutorKind } from "./executors.ts";
+import { auctionOutcome, claimAll } from "./claims.ts";
+import type { CallSender } from "./smart-account-executor.ts";
 import { FileAuctionReader } from "./auction-file.ts";
 import { initAgentKeys, loadAgentIdentity } from "./identity.ts";
 import { ChainPqKeySource, StaticPqKeySource, type PqKeySource } from "./keysource.ts";
@@ -130,6 +134,36 @@ export async function run(): Promise<void> {
         if (i + 1 < rounds) await new Promise((r) => setTimeout(r, interval * 1000));
       }
       out({ executor: kind, auctions: typeof flags.auctions === "string" ? flags.auctions : "chain", planners: planners.map((p) => p.name), log });
+      return;
+    }
+    case "bids":
+    case "claim": {
+      const id = loadAgentIdentity(paths);
+      const net = network();
+      const kind = str(flags, cmd === "claim" ? "executor" : "path", "smart-account") as ExecutorKind;
+      if (kind !== "smart-account" && kind !== "window") throw new Error("choose smart-account or window");
+      const { agent } = buildAgent(paths);
+      const mandate = agent.state.mandate;
+      if (!mandate) throw new Error("no mandate: nothing to look up");
+      const client = createPublicClient({ transport: http(net.evmRpc) });
+      const bidder = bidderFor(kind, id);
+      const outcomes = [];
+      for (const a of mandate.auctions) outcomes.push(await auctionOutcome(client, a, bidder));
+      if (cmd === "bids") {
+        out({ bidder, outcomes });
+        return;
+      }
+      const executor = await makeExecutor(kind, {
+        id,
+        net,
+        ...(typeof flags["relayer-url"] === "string" ? { relayerUrl: flags["relayer-url"] } : {}),
+      });
+      if (!executor.sendCall) throw new Error("this executor cannot send claims");
+      const sink = new FileSink(paths.receipts);
+      const receipts = new ReceiptLog(sink, id.receiptKey, id.account.cosmos);
+      const claims = [];
+      for (const o of outcomes) claims.push({ auction: o.auction, state: o.state, claims: await claimAll({ outcome: o, sender: executor as CallSender, receipts, mandateHash: agent.state.mandateHash ?? null }) });
+      out({ bidder, claims });
       return;
     }
     case "status": {

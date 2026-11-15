@@ -20,11 +20,21 @@ Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/
 | 10 | Agent | `pnpm agent run --executor smart-account --rounds 3 --interval 30` (auctions read from the chain; `--factory 0x…` adds the issuer's text; `--auctions file.json` reads a file instead) | `MsgExecuteEVM` through the relayer. `--executor dry-run` (default) sends nothing | steps 6, 7, 11; **S2** |
 | 11 | Ops | `pnpm relayer --targets 0x<auction>` | relays the agent's `MsgExecuteEVM` (fee from the relayer) | relayer QOR; **S2** |
 | 12 | Anyone | `pnpm dashboard` | nothing | — |
+| 13 | Agent | after the auction settles: `pnpm agent bids`, then `pnpm agent claim --executor smart-account` (or `window`) | one `claim(bidId)` per unclaimed bid; tokens and refunds go to the bidder | the auction Settled, Failed or Cancelled |
+| 14 | Owner | `pnpm demo:testnet --check --auction 0x<auction>`, then without `--check` | the demo's scenes (section below) | everything above |
 | — | Owner | `pnpm owner window open --targets 0x<auction>,0x<factory> --blocks 3600 --max-txs 5` / `window close` | hybrid `MsgOpenEVMWindow` / `MsgCloseEVMWindow` for the agent account | step 4. Only on the fallback path (design R1), or for permissionless calls (open, finalize, claim) |
 | — | Owner | Fallback path (design R1), if S2 fails: `pnpm owner fund-agent --amount 500`, `pnpm owner approve --from agent --spender 0x<auction> --amount 500`, `pnpm owner window open --targets 0x<auction> --max-txs 5`, then `pnpm agent run --executor window` | an fUSD transfer, an approval from the agent account, a window | QOR on owner and agent account |
 | — | Owner | `pnpm owner rules ...` (same flags as `link`) | `MsgUpdateSpendingRules` only | step 6 |
 | — | Owner | `pnpm owner revoke` | `MsgRevokeAuthenticator`: the agent's key stops working at once | step 6 |
 | — | Anyone | `pnpm owner status`, `pnpm agent status`, `pnpm agent receipts` | nothing | — |
+
+## The demo run
+
+`pnpm demo:testnet --auction 0x<auction>` plays the owner, the agent and the relayer on one machine (a demo convenience: it reads both folders) and writes `owner/outbox/demo-<time>.json`:
+
+1. A mandate, signed and sealed by the owner, verified by the agent against the owner's key on chain.
+2. Plan, clamp, seal, `MsgExecuteEVM`: a landed bid.
+3. Refusals, each with its evidence: (a) over the per-transaction limit with the policy bypassed: the chain's `success=false`; (b) an fUSD transfer from the owner's account with the policy bypassed (the demo relayer allows the target so that the chain is what refuses); (c) a forged mandate: the agent's refusal code; (d) injected text in the auction description: the policy's clamp.
 
 ## Costs (estimates)
 
