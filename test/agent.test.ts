@@ -84,9 +84,10 @@ describe("BidderAgent", () => {
     const kinds: string[] = [];
     for (let i = 0; i < 5; i++) {
       const s = await agent.step();
-      if (s.kind === "decided") kinds.push(s.plan.decision.kind === "skip" ? s.plan.decision.reason : "bid");
+      kinds.push(s.kind === "idle" ? `idle: ${s.why}` : s.plan.decision.kind === "skip" ? s.plan.decision.reason : "bid");
     }
-    expect(kinds).toEqual(["bid", "bid", "bid", "BID_COUNT_EXHAUSTED", "BID_COUNT_EXHAUSTED"]);
+    // Once the count is used up the planner is not even asked (no model call is paid for).
+    expect(kinds).toEqual(["bid", "bid", "bid", "idle: the mandate's bid count is used up", "idle: the mandate's bid count is used up"]);
     expect(agent.state.ledger.committed).toBeLessThanOrEqual(300_000_000n);
   });
 

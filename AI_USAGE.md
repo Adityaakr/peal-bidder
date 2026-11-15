@@ -132,3 +132,17 @@ From the approved design (decisions of 15 to 16 November 2026):
 - Noticed one behaviour change and kept it: a validly signed mandate from an account the agent does not serve is now refused as `WRONG_OWNER` (before, the owner-bound AAD made it fail to open). The kit's AAD binds the recipient and the purpose instead.
 
 **Human decisions in this step**: none new.
+
+### 2026-11-16: the long-running agent (seventh pull request)
+
+**What the worker agent did**
+
+- Wrote `pnpm agent serve`: each tick reads new mandates, makes at most one planning round and (with `--claim`) claims finished auctions, printing one JSON line; Ctrl-C ends it after the current tick.
+- Made the agent go idle, without asking the planner, once the mandate's bid count or budget is used up or no auction is taking bids, so a long-running agent does not pay for model calls that cannot lead to a bid.
+- Added a single-instance lock: two processes sharing one receipts log and nonce store could each spend the remaining budget.
+
+**What went wrong and was fixed**
+
+- While wiring claims into the loop, the agent noticed that two `ReceiptLog` objects on one file (decisions and claims) would each keep their own position and fork the hash chain. The log now continues from the file's last line before each write, and refuses a log that was truncated or extended by anything else.
+
+**Human decisions in this step**: none new.

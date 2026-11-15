@@ -56,13 +56,14 @@ Layers, from the outside in:
 | `agent/smart-account-executor.ts` | Signs a `MsgExecuteEVM` with the agent's linked key, for the relayer |
 | `agent/bid-encoder.ts` | Verifies the auction's committee (qore-pq-kit `verifyMember`), checks the escrow with the contract, seals the bid (`sealSlot`) and encodes `commitBid` |
 | `agent/chain-auction.ts`, `agent/auction-abi.ts` | Reads auctions from the chain; the small slice of Peal Sealed Auction's interface the agent uses, written out by hand |
+| `agent/serve.ts`, `agent/lock.ts` | The long-running agent (`pnpm agent serve`): inbox, one planning round and claims per tick, one JSON line per tick; one writing process per agent folder |
 | `agent/claims.ts` | After the auction: the agent's bids read from the chain (`BidCommitted`, `getBid`, `allocationOf`), and `claim` for each unclaimed one, with a receipt per claim |
 | `scripts/demo-testnet.ts` | The testnet demo: one landed bid and each refusal, with transaction hashes; `--check` lists what is in place and what is missing (read-only) |
 | `agent/window-executor.ts`, `agent/executors.ts` | The fallback executor (the agent's own account inside an owner-opened window) and the `--executor` choice |
 | `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
 | `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 182 offline tests and 3 live planner checks (Vitest and fast-check); see below |
+| `test/` | 190 offline tests and 3 live planner checks (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -91,7 +92,8 @@ pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick
 pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 \
   --instructions "Take part in the buyback at a fair price." --deliver
 pnpm agent receive                    # verified against the owner's key on chain
-pnpm agent run --executor smart-account --rounds 3   # or --executor window (fallback), or dry-run (default)
+pnpm agent serve --executor smart-account --interval 60 --claim   # the long-running agent; Ctrl-C stops it cleanly
+# or one round at a time: pnpm agent run --executor smart-account (dry-run is the default executor)
 pnpm agent bids                       # after the close: the agent's bids and what they won
 pnpm agent claim --executor smart-account
 pnpm dashboard                        # http://127.0.0.1:8788
@@ -115,6 +117,7 @@ The planner uses Claude only when `ANTHROPIC_API_KEY` is set in the environment.
 - **Bid encoding** (`test/bid-encoder.test.ts`): against a fake chain with real member keys and signed cards, a sealed bid opens with any 2 of the 3 members' shares and not with one; a member cannot open another's envelope; envelopes are bound to the bidder and seq; the calldata never holds the bid in clear; a substituted ML-KEM key over REST and an escrow the contract disagrees with are refused; issuer text is kept only when it matches the metadata hash.
 - **Local end to end** (`test/e2e-local.test.ts`): mandate to landed bids through planner, policy, encoder, linked-key signature and relayer, with the chain-side rule **simulated**; with the policy bypassed, an over-limit bid is refused by the (simulated) rule, and the daily limit holds.
 - **Fallback executor** (`test/window-executor.test.ts`): nothing is sent without a live window that admits the auction; reverted, refused and unknown outcomes are told apart.
+- **Serve and lock** (`test/serve.test.ts`): a tick drains the inbox (junk refused, mandates accepted), plans once and logs one line with no secret in it; the planner is not asked once the limits are used up or no auction is open; claims land on the same receipts chain; a second process is refused the lock, a dead one's lock is taken over; two logs on one file extend one chain, and a truncated or foreign log stops the agent.
 - **Claims** (`test/claims.test.ts`): only the bidder's own bids (a node returning someone else's is caught by `getBid`), each unclaimed bid claimed once with a receipt, nothing claimed before the auction is settled, failed or cancelled.
 - **CLI and dashboard** (`test/cli.test.ts`, `test/dashboard.test.ts`): the owner-to-agent flow through the files, restart and replay; fUSD amounts parsed exactly; untrusted strings escaped on the page.
 

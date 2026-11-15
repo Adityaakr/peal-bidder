@@ -11,7 +11,7 @@ import { decodeMandate, mandateHash, type PealMandateV1 } from "../common/mandat
 import type { AuctionView } from "./auction.ts";
 import { receiveMandate, type AcceptedMandate, type InboxDeps, type MandateRefusal } from "./inbox.ts";
 import { decide, type Planner, type PlanResult } from "./planner/index.ts";
-import { EMPTY_LEDGER, recordBid, type Decision, type Ledger } from "./policy.ts";
+import { EMPTY_LEDGER, recordBid, remainingCap, type Decision, type Ledger } from "./policy.ts";
 import type { Receipt, ReceiptLog } from "./receipts.ts";
 
 export type BidDecision = Extract<Decision, { kind: "bid" }>;
@@ -149,8 +149,12 @@ export class BidderAgent {
     const now = this.deps.inbox.now();
     if (now >= mandate.expiresAt) return { kind: "idle", why: "the mandate has expired" };
     if (now < mandate.notBefore) return { kind: "idle", why: "the mandate has not started" };
+    // Nothing can be bid: do not ask the planner (and pay for a model call) for nothing.
+    if (this.ledger.bids >= mandate.maxBids) return { kind: "idle", why: "the mandate's bid count is used up" };
+    if (remainingCap(mandate, this.ledger) === 0n) return { kind: "idle", why: "the mandate's budget is used up" };
 
     const auctions = await this.deps.reader.read(mandate.auctions);
+    if (!auctions.some((a) => a.commitOpen && now < a.commitEnd)) return { kind: "idle", why: "no auction of the mandate is taking bids" };
     const plan = await decide({ mandate, auctions, ledger: this.ledger, now }, this.deps.planners);
     this.deps.receipts.append("decision", hash, {
       source: plan.source,

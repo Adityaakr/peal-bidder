@@ -49,6 +49,7 @@ The split is the main defence against a compromised or misbehaving agent: the ke
 - The executor cannot tell whether a bid landed: the bid counts as spent. The relayer reports "unknown" for anything but a delivered result or a refusal with a code.
 - `success=false` in a code-0 transaction (an authorised execution the chain refused, e.g. over the limit) is final: the chain consumed the key's nonce.
 - The owner CLI refuses to open an unscoped window for the agent.
+- One agent process per agent folder: every command that writes takes `agent/agent.lock`, so two processes cannot each spend the remaining budget or fork the receipts chain. A receipts log that was truncated or extended by anything else while the agent ran stops it.
 
 ## What is *not* protected, stated plainly
 

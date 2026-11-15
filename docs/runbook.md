@@ -20,6 +20,7 @@ Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/
 | 10 | Agent | `pnpm agent run --executor smart-account --rounds 3 --interval 30` (auctions read from the chain; `--factory 0x…` adds the issuer's text; `--auctions file.json` reads a file instead) | `MsgExecuteEVM` through the relayer. `--executor dry-run` (default) sends nothing | steps 6, 7, 11 |
 | 11 | Ops | `pnpm relayer --targets 0x<auction>` | relays the agent's `MsgExecuteEVM` (fee from the relayer) | relayer QOR |
 | 12 | Anyone | `pnpm dashboard` | nothing | — |
+| 10b | Agent | `pnpm agent serve --executor smart-account --interval 60 --claim`: steps 9, 10 and 13 every minute until stopped (Ctrl-C finishes the current tick) | as steps 9, 10, 13 | as those steps |
 | 13 | Agent | after the auction settles: `pnpm agent bids`, then `pnpm agent claim --executor smart-account` (or `window`) | one `claim(bidId)` per unclaimed bid; tokens and refunds go to the bidder | the auction Settled, Failed or Cancelled |
 | 14 | Owner | `pnpm demo:testnet --check --auction 0x<auction>`, then without `--check` | the demo's scenes (section below) | everything above |
 | — | Owner | `pnpm owner window open --targets 0x<auction>,0x<factory> --blocks 3600 --max-txs 5` / `window close` | hybrid `MsgOpenEVMWindow` / `MsgCloseEVMWindow` for the agent account | step 4. Only on the fallback path (design R1), or for permissionless calls (open, finalize, claim) |

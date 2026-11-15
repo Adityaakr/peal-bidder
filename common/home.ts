@@ -50,5 +50,7 @@ export function agentPaths(home = bidderHome()) {
     inbox: join(dir, "inbox"),
     receipts: join(dir, "receipts.jsonl"),
     nonces: join(dir, "nonces.json"),
+    /** Held by the one agent process allowed to write (agent/lock.ts). */
+    lock: join(dir, "agent.lock"),
   };
 }

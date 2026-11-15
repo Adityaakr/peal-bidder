@@ -7,6 +7,9 @@
  *                                           plan and bid; --rounds N --interval S. Auctions come from the
  *                                           chain unless --auctions names a file. The default executor is dry-run.
  *   pnpm agent status                       the active mandate and what it has committed
+ *   pnpm agent serve [--executor ...] [--interval 60] [--claim] [--max-ticks N]
+ *                                           the long-running agent: inbox, one planning round and (with --claim)
+ *                                           claims, every interval; stops cleanly on SIGINT/SIGTERM
  *   pnpm agent bids [--path smart-account|window]       the agent's bids on the mandate's auctions, from the chain
  *   pnpm agent claim --executor smart-account|window    claim every unclaimed bid of a finished auction
  *   pnpm agent receipts                     verify the receipts log
@@ -14,7 +17,7 @@
  * --offline (receive): check the owner's signature against owner-public.json
  * instead of the chain. For local runs only; it says so in its output.
  */
-import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { hexToBytes } from "@noble/hashes/utils.js";
 import { createPublicClient, http, type Address } from "viem";
@@ -25,6 +28,8 @@ import { BidderAgent, DryRunExecutor, type BidExecutor } from "./agent.ts";
 import { ChainAuctionReader } from "./chain-auction.ts";
 import { bidderFor, makeExecutor, type ExecutorKind } from "./executors.ts";
 import { auctionOutcome, claimAll } from "./claims.ts";
+import { acquireLock } from "./lock.ts";
+import { drainInbox, serve } from "./serve.ts";
 import type { CallSender } from "./smart-account-executor.ts";
 import { FileAuctionReader } from "./auction-file.ts";
 import { initAgentKeys, loadAgentIdentity } from "./identity.ts";
@@ -89,20 +94,55 @@ export async function run(): Promise<void> {
       return;
     }
     case "receive": {
+      acquireLock(paths.lock);
       const offline = flags.offline === true;
       const { agent } = buildAgent(paths, { offline });
-      mkdirSync(join(paths.inbox, "done"), { recursive: true, mode: 0o700 });
-      const files = existsSync(paths.inbox) ? readdirSync(paths.inbox).filter((f) => f.endsWith(".qoreseal")).sort() : [];
-      const results = [];
-      for (const f of files) {
-        const res = await agent.receive(readFileSync(join(paths.inbox, f), "utf8"));
-        renameSync(join(paths.inbox, f), join(paths.inbox, "done", f));
-        results.push(res.ok ? { file: f, accepted: res.mandateHash, nonce: res.mandate.nonce } : { file: f, refused: res.code, message: res.message });
-      }
+      const results = await drainInbox(agent, paths.inbox);
       out({ ownerKey: offline ? "owner-public.json (OFFLINE: not read from the chain)" : "pqcKeyStatus on chain", results });
       return;
     }
+    case "serve": {
+      acquireLock(paths.lock);
+      const id = loadAgentIdentity(paths);
+      const net = network();
+      const kind = str(flags, "executor", "dry-run") as ExecutorKind;
+      if (!["dry-run", "smart-account", "window"].includes(kind)) throw new Error("--executor must be dry-run, smart-account or window");
+      const executor = await makeExecutor(kind, {
+        id,
+        net,
+        ...(typeof flags["relayer-url"] === "string" ? { relayerUrl: flags["relayer-url"] } : {}),
+        ...(typeof flags.gas === "string" ? { gasLimit: BigInt(int(flags, "gas")) } : {}),
+      });
+      const offline = flags.offline === true;
+      const { agent } = buildAgent(paths, {
+        offline,
+        ...(typeof flags.auctions === "string" ? { auctions: flags.auctions } : {}),
+        ...(typeof flags.factory === "string" ? { factory: flags.factory } : {}),
+        executor,
+      });
+      let claims: Parameters<typeof serve>[0]["claims"];
+      if (flags.claim === true) {
+        if (kind === "dry-run" || !executor.sendCall) throw new Error("--claim needs --executor smart-account or window");
+        claims = {
+          client: createPublicClient({ transport: http(net.evmRpc) }),
+          bidder: bidderFor(kind, id),
+          sender: executor as CallSender,
+          receipts: new ReceiptLog(new FileSink(paths.receipts), id.receiptKey, id.account.cosmos),
+        };
+      }
+      const stop = new AbortController();
+      process.once("SIGINT", () => stop.abort());
+      process.once("SIGTERM", () => stop.abort());
+      console.log(JSON.stringify({ serving: id.account.cosmos, owner: id.account.owner, executor: kind, claims: Boolean(claims) }));
+      const ticks = await serve(
+        { agent, inbox: paths.inbox, ...(claims ? { claims } : {}), log: (l) => console.log(JSON.stringify(l)) },
+        { intervalSeconds: int(flags, "interval", 60), ...(typeof flags["max-ticks"] === "string" ? { maxTicks: int(flags, "max-ticks") } : {}), signal: stop.signal },
+      );
+      console.log(JSON.stringify({ stopped: true, ticks }));
+      return;
+    }
     case "run": {
+      acquireLock(paths.lock);
       const kind = str(flags, "executor", "dry-run") as ExecutorKind;
       if (!["dry-run", "smart-account", "window"].includes(kind)) throw new Error("--executor must be dry-run, smart-account or window");
       const executor = await makeExecutor(kind, {
@@ -138,6 +178,7 @@ export async function run(): Promise<void> {
     }
     case "bids":
     case "claim": {
+      if (cmd === "claim") acquireLock(paths.lock);
       const id = loadAgentIdentity(paths);
       const net = network();
       const kind = str(flags, cmd === "claim" ? "executor" : "path", "smart-account") as ExecutorKind;
