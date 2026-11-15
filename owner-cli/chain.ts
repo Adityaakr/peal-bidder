@@ -117,25 +117,32 @@ export async function closeWindow(acc: UnifiedAccount): Promise<TxOutcome | unde
 }
 
 /**
- * Approve `amount` of the quote token to `spender` from the owner's account:
- * open a window scoped to the token for one transaction, send `approve`, and
- * close the window again even if the approval fails.
+ * One ERC-20 call from `acc`: open a window scoped to the token for one
+ * transaction, send the call, and close the window again even if it fails.
  */
-export async function approveQuote(owner: UnifiedAccount, token: string, spender: string, amount: bigint): Promise<TxOutcome[]> {
+async function tokenCallInWindow(acc: UnifiedAccount, token: string, data: Hex, note: string): Promise<TxOutcome[]> {
   const out: TxOutcome[] = [];
-  out.push(await openWindow(owner, { targets: [token], blocks: 300, maxTxs: 1, gasPerTx: 120_000n }));
+  out.push(await openWindow(acc, { targets: [token], blocks: 300, maxTxs: 1, gasPerTx: 120_000n }));
   try {
-    const receipt = await sendEvm(owner, {
-      to: token as Hex,
-      data: encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender as Hex, amount] }),
-      gas: 100_000n,
-    });
-    out.push({ txHash: receipt.transactionHash, note: `approve ${amount} to ${spender}` });
+    const receipt = await sendEvm(acc, { to: token as Hex, data, gas: 100_000n });
+    out.push({ txHash: receipt.transactionHash, note });
   } finally {
-    const closed = await closeWindow(owner);
+    const closed = await closeWindow(acc);
     if (closed) out.push(closed);
   }
   return out;
+}
+
+/** Approve `amount` of the quote token to `spender` from `acc` (the owner's account, or the agent account's on the fallback path). */
+export async function approveQuote(acc: UnifiedAccount, token: string, spender: string, amount: bigint): Promise<TxOutcome[]> {
+  const data = encodeFunctionData({ abi: erc20Abi, functionName: "approve", args: [spender as Hex, amount] });
+  return tokenCallInWindow(acc, token, data, `approve ${amount} to ${spender} from ${acc.cosmos}`);
+}
+
+/** Fallback path: move `amount` of the quote token from the owner to the agent's account, which then bids with it. */
+export async function transferQuote(owner: UnifiedAccount, token: string, to: string, amount: bigint): Promise<TxOutcome[]> {
+  const data = encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to as Hex, amount] });
+  return tokenCallInWindow(owner, token, data, `transfer ${amount} to ${to}`);
 }
 
 /** Send owner-signed native messages (link, rules, revoke) in one hybrid transaction. */

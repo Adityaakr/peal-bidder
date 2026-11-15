@@ -4,7 +4,7 @@ An AI agent that bids in Peal sealed auctions for its owner, inside limits that 
 
 Entry in the **Post-Quantum AI Agents** category of QoreChain's *Build Before Q-Day* developer fest. It is one of three linked entries: [Peal Sealed Auction](https://github.com/Adityaakr/peal-sealed-auction) is the venue, [Peal Tender](https://github.com/Adityaakr/peal-tender) is the treasury that runs buybacks through it, and this repository is the participant. All three use [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit).
 
-> **Status (16 November 2026):** built and tested offline: the mandate channel, the policy clamp, the planner (Claude Opus 5.5 with a rule-based fallback), the signed receipts log, the owner CLI, the relayer and the dashboard. The chain-side commands are written but **not yet run on the testnet**: the accounts are waiting for faucet funds, and the smart-account path (a linked key executing `commitBid` under a spending rule) waits for spike S2 ([docs/spikes.md](docs/spikes.md)). Until Peal Sealed Auction is deployed, the agent bids in dry-run mode. Nothing is deployed yet.
+> **Status (16 November 2026):** built and tested offline: the mandate channel, the policy clamp, the planner (Claude Opus 5.5 with a rule-based fallback), the signed receipts log, the owner CLI, the relayer, the dashboard, and the bid itself: sealed to the auction's committee with qore-pq-kit's `threshold` module and encoded for Peal Sealed Auction's `commitBid`, then sent either through the owner's smart account or (the fallback) from the agent's own account inside an owner-opened window. The chain-side commands are written but **not yet run on the testnet**: the accounts are waiting for faucet funds, the smart-account path waits for spike S2 ([docs/spikes.md](docs/spikes.md)), and the auction is not deployed yet. The default executor is dry-run.
 
 ## How it stays inside its mandate
 
@@ -54,10 +54,13 @@ Layers, from the outside in:
 | `owner-cli/smart-account.ts` | The spending rule derived from a mandate (fUSD only, per-bid and daily limits, only `commitBid` on the mandate's auctions) and the link, rules and revoke messages |
 | `agent/cli.ts`, `agent/identity.ts` | The agent's command line, and its own QoreSeal and receipt keys |
 | `agent/smart-account-executor.ts` | Signs a `MsgExecuteEVM` with the agent's linked key, for the relayer |
+| `agent/bid-encoder.ts` | Verifies the auction's committee (qore-pq-kit `verifyMember`), checks the escrow with the contract, seals the bid (`sealSlot`) and encodes `commitBid` |
+| `agent/chain-auction.ts`, `agent/auction-abi.ts` | Reads auctions from the chain; the small slice of Peal Sealed Auction's interface the agent uses, written out by hand |
+| `agent/window-executor.ts`, `agent/executors.ts` | The fallback executor (the agent's own account inside an owner-opened window) and the `--executor` choice |
 | `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
 | `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 155 offline tests and 3 live planner checks (Vitest and fast-check); see below |
+| `test/` | 173 offline tests and 3 live planner checks (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -85,7 +88,7 @@ pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick
 pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 \
   --instructions "Take part in the buyback at a fair price." --deliver
 pnpm agent receive                    # verified against the owner's key on chain
-pnpm agent run --auctions auctions.json --rounds 3
+pnpm agent run --executor smart-account --rounds 3   # or --executor window (fallback), or dry-run (default)
 pnpm dashboard                        # http://127.0.0.1:8788
 ```
 
@@ -103,6 +106,9 @@ The planner uses Claude only when `ANTHROPIC_API_KEY` is set in the environment.
 - **Key split** (`test/accounts.test.ts`): the SDK and QoreSign derive the same keys; secret files are 0600 and never overwritten; the agent's file holds no mnemonic, and the agent refuses to run from one that does; `public.json` holds only public halves.
 - **Smart account** (`test/smart-account.test.ts`): the rule a mandate produces passes the SDK's own validators; the link is one owner-signed `[MsgUpdateSpendingRules, MsgRegisterAuthenticator]` with an EIP-191 proof by the agent's key, linked by its EVM address with the `evm` permission only.
 - **Relayer** (`test/relayer.test.ts`): the agent's signature over the v1 and v2 execution digests recovers to the agent's address; the relayer refuses other targets, accounts, relayers, native value and oversized gas without broadcasting; `success=false` is a final refusal with the chain's reason; a lost connection is "unknown" (counted as spent).
+- **Bid encoding** (`test/bid-encoder.test.ts`): against a fake chain with real member keys and signed cards, a sealed bid opens with any 2 of the 3 members' shares and not with one; a member cannot open another's envelope; envelopes are bound to the bidder and seq; the calldata never holds the bid in clear; a substituted ML-KEM key over REST and an escrow the contract disagrees with are refused; issuer text is kept only when it matches the metadata hash.
+- **Local end to end** (`test/e2e-local.test.ts`): mandate to landed bids through planner, policy, encoder, linked-key signature and relayer, with the chain-side rule **simulated**; with the policy bypassed, an over-limit bid is refused by the (simulated) rule, and the daily limit holds.
+- **Fallback executor** (`test/window-executor.test.ts`): nothing is sent without a live window that admits the auction; reverted, refused and unknown outcomes are told apart.
 - **CLI and dashboard** (`test/cli.test.ts`, `test/dashboard.test.ts`): the owner-to-agent flow through the files, restart and replay; fUSD amounts parsed exactly; untrusted strings escaped on the page.
 
 The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of API responses (each says so in its `provenance` field), because the owner's API key is not available yet. Recorded responses will join them in `test/fixtures/claude-recorded/`.
@@ -123,8 +129,9 @@ Testnet accounts (throwaway, created 16 November 2026, keys outside the reposito
 
 1. ~~Mandate format, signing and sealing, verification, policy, planner, receipts~~ (PR 1).
 2. ~~Owner CLI, relayer, dashboard~~ (PR 2), written and tested offline; first live run once the accounts are funded.
-3. The smart-account path depends on spike S2 in qore-pq-kit (a linked key executing an EVM call under a spending rule has no recorded end-to-end run). If it fails, bids go from the agent's own account inside owner-opened scoped windows, with the allowance and the auction's caps ([docs/spikes.md](docs/spikes.md)).
-4. Integration with Peal Sealed Auction's deployed contracts (expected 22 to 23 November): bid sealing to the committee with qore-pq-kit's `threshold` module, and a testnet run with one landed bid and each refusal.
+3. ~~Bid sealing and encoding for Peal Sealed Auction; chain reader; fallback window executor~~ (PR 3), tested offline against a fake chain.
+4. The smart-account path depends on spike S2 in qore-pq-kit (a linked key executing an EVM call under a spending rule has no recorded end-to-end run). If it fails, bids go from the agent's own account inside owner-opened scoped windows, with the allowance and the auction's caps ([docs/spikes.md](docs/spikes.md)).
+5. A testnet run against Peal Sealed Auction's deployed contracts (expected 22 to 23 November): one landed bid and each refusal, with transaction hashes.
 
 ## Prior work
 
@@ -135,7 +142,7 @@ The design comes from the author's own earlier project, **Peal** (private, start
 ## Credits
 
 - [@qorechain/qoresign](https://www.npmjs.com/package/@qorechain/qoresign) 0.2.0 (hybrid message signatures) and [@qorechain/qoreseal](https://www.npmjs.com/package/@qorechain/qoreseal) 0.1.0 (ML-KEM-1024 envelopes), QoreChain's kits.
-- [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit) `v0.1.0`, by git tag: network settings, hybrid-signed broadcasts, EVM transactions and secret files.
+- [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit) `v0.2.0`, by git tag: network settings, hybrid-signed broadcasts, EVM transactions, secret files, and the `threshold` module (sealing a bid to a committee, checking members).
 - [@qorechain/sdk](https://www.npmjs.com/package/@qorechain/sdk) and [@qorechain/evm](https://www.npmjs.com/package/@qorechain/evm) 0.14.0: windows, linked keys, spending rules, `MsgExecuteEVM`.
 - [@anthropic-ai/sdk](https://www.npmjs.com/package/@anthropic-ai/sdk) for Claude; [viem](https://viem.sh) for the EVM calls; [@noble/hashes](https://github.com/paulmillr/noble-hashes) and [@scure/bip39](https://github.com/paulmillr/scure-bip39); [Vitest](https://vitest.dev) and [fast-check](https://fast-check.dev) for tests.
 

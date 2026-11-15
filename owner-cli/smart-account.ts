@@ -22,6 +22,7 @@ import {
 } from "@qorechain/sdk";
 import { hexToBytes, toFunctionSelector, type Hex } from "viem";
 import type { PealMandateV1 } from "../common/mandate.ts";
+import { COMMIT_BID_SIGNATURE } from "../agent/auction-abi.ts";
 
 export type SpendingRule = ReturnType<typeof qorechainTypes.abstractaccount.SpendingRule.fromPartial>;
 
@@ -31,12 +32,8 @@ export const RULE_ID = "peal-bidder";
 export const AGENT_PERMISSIONS = ["evm"] as const;
 export const LINK_LABEL = "peal-bidder-agent";
 
-/**
- * Provisional `commitBid` signature from the design (section 4.2). The real
- * selector comes from Peal Sealed Auction's deployed ABI; pass it with
- * `--commit-bid-signature` or `--commit-bid-selector` once that exists.
- */
-export const PROVISIONAL_COMMIT_BID_SIGNATURE = "commitBid(uint64,bytes32,bytes32,bytes32[],bytes[],uint256)";
+/** `commitBid`'s signature, from Peal Sealed Auction's contract (`agent/auction-abi.ts`). */
+export { COMMIT_BID_SIGNATURE };
 
 export function selectorOf(signatureOrSelector: string): Hex {
   if (/^0x[0-9a-fA-F]{8}$/.test(signatureOrSelector)) return signatureOrSelector.toLowerCase() as Hex;

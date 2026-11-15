@@ -30,8 +30,8 @@ importers:
         specifier: 2.4.0
         version: 2.4.0
       qore-pq-kit:
-        specifier: github:Adityaakr/qore-pq-kit#v0.1.0
-        version: https://codeload.github.com/Adityaakr/qore-pq-kit/tar.gz/fd293a01ab36972c1f02091f06ace56b570d7dd2(typescript@5.9.3)
+        specifier: github:Adityaakr/qore-pq-kit#v0.2.0
+        version: https://codeload.github.com/Adityaakr/qore-pq-kit/tar.gz/72e53e7b505048c36ac317ba23e12a0702a001ad(typescript@5.9.3)
       viem:
         specifier: 2.57.20
         version: 2.57.20(typescript@5.9.3)
@@ -791,8 +791,8 @@ packages:
   pure-rand@8.4.2:
     resolution: {integrity: sha512-vvuOGgcuPJAirlHvuQw1TrOiw7ptaIXXmIbNuiNOY6lNGJJH49PQ1Kj4nd783nPdQhQdicgOjVI2yI/9BD6/Ng==}
 
-  qore-pq-kit@https://codeload.github.com/Adityaakr/qore-pq-kit/tar.gz/fd293a01ab36972c1f02091f06ace56b570d7dd2:
-    resolution: {tarball: https://codeload.github.com/Adityaakr/qore-pq-kit/tar.gz/fd293a01ab36972c1f02091f06ace56b570d7dd2}
+  qore-pq-kit@https://codeload.github.com/Adityaakr/qore-pq-kit/tar.gz/72e53e7b505048c36ac317ba23e12a0702a001ad:
+    resolution: {tarball: https://codeload.github.com/Adityaakr/qore-pq-kit/tar.gz/72e53e7b505048c36ac317ba23e12a0702a001ad}
     version: 0.1.0
 
   readonly-date-esm@2.0.0:
@@ -1709,7 +1709,7 @@ snapshots:
 
   pure-rand@8.4.2: {}
 
-  qore-pq-kit@https://codeload.github.com/Adityaakr/qore-pq-kit/tar.gz/fd293a01ab36972c1f02091f06ace56b570d7dd2(typescript@5.9.3):
+  qore-pq-kit@https://codeload.github.com/Adityaakr/qore-pq-kit/tar.gz/72e53e7b505048c36ac317ba23e12a0702a001ad(typescript@5.9.3):
     dependencies:
       '@cosmjs/proto-signing': 0.39.0
       '@cosmjs/stargate': 0.39.0

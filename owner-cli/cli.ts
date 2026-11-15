@@ -7,7 +7,8 @@
  *   pnpm owner register-agent        publish the agent's ML-KEM key and sign its recipient card (after `pnpm agent init`)
  *   pnpm owner mandate ...           write, sign and seal a mandate to the agent
  *   pnpm owner window open|close     open or close the agent's scoped EVM window
- *   pnpm owner approve ...           approve fUSD to an auction from the owner's account
+ *   pnpm owner approve ...           approve fUSD to an auction (from the owner; --from agent on the fallback path)
+ *   pnpm owner fund-agent ...        fallback path: move fUSD from the owner to the agent's account
  *   pnpm owner link ...              link the agent's key to the owner's account under a spending rule   (unproven: S2)
  *   pnpm owner rules ...             replace the spending rule                                             (unproven: S2)
  *   pnpm owner revoke                revoke the agent's key at once                                        (unproven: S2)
@@ -29,6 +30,7 @@ import {
   accountStatus,
   approveQuote,
   closeWindow,
+  transferQuote,
   openWindow,
   registerAgentKem,
   registerPqKey,
@@ -38,7 +40,7 @@ import {
 import { sealMandate, signMandate } from "./mandate.ts";
 import { chainRecipient, offlineRecipient, readCard } from "./recipient.ts";
 import {
-  PROVISIONAL_COMMIT_BID_SIGNATURE,
+  COMMIT_BID_SIGNATURE,
   linkAgentMsgs,
   revokeAgentMsg,
   selectorOf,
@@ -72,7 +74,7 @@ export function mandateFromFlags(flags: Flags, ctx: { owner: string; info: Agent
 function commitBidSelector(flags: Flags): Hex {
   const sel = flags["commit-bid-selector"];
   if (typeof sel === "string") return selectorOf(sel);
-  return selectorOf(str(flags, "commit-bid-signature", PROVISIONAL_COMMIT_BID_SIGNATURE));
+  return selectorOf(str(flags, "commit-bid-signature", COMMIT_BID_SIGNATURE));
 }
 
 export async function run(): Promise<void> {
@@ -175,8 +177,15 @@ export async function run(): Promise<void> {
       return;
     }
     case "approve": {
+      const from = str(flags, "from", "owner");
+      if (from !== "owner" && from !== "agent") throw new Error("--from must be owner or agent");
+      const acc = await loadAccount(from === "owner" ? op.owner : op.agentAccount);
+      out(await approveQuote(acc, str(flags, "token", FUSD), str(flags, "spender"), units(flags, "amount", FUSD_DECIMALS)));
+      return;
+    }
+    case "fund-agent": {
       const owner = await loadAccount(op.owner);
-      out(await approveQuote(owner, str(flags, "token", FUSD), str(flags, "spender"), units(flags, "amount", FUSD_DECIMALS)));
+      out(await transferQuote(owner, str(flags, "token", FUSD), accountAddress(op.agentAccount).evm, units(flags, "amount", FUSD_DECIMALS)));
       return;
     }
     case "link":
@@ -212,7 +221,7 @@ export async function run(): Promise<void> {
       return;
     }
     default:
-      throw new Error("usage: pnpm owner init|status|register|register-agent|mandate|window|approve|link|rules|revoke");
+      throw new Error("usage: pnpm owner init|status|register|register-agent|mandate|window|approve|fund-agent|link|rules|revoke");
   }
 }
 

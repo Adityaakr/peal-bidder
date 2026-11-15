@@ -32,3 +32,7 @@ Run: `pnpm agent receive` (default, chain mode) and `pnpm owner status` against 
 ### Waiting on funds
 
 The owner, agent-account and relayer accounts (README, Network) are not funded yet. The request went to the owner on 15 November (UTC); funds come from the owner's faucet sign-in. Until then the commands that send transactions (`register`, `register-agent`, `window`, `approve`, `link`, `rules`, `revoke`, the relayer) are tested offline only.
+
+### 2026-11-16: the auction's interface
+
+Peal Sealed Auction's contracts were merged (read at `f502616`). The agent's copy of the interface (`agent/auction-abi.ts`) is checked against them by hand. One correction followed: `commitBid` takes `uint32 seq`, not the `uint64` the design sketched, so the spending rule's allowed call is `commitBid(uint32,bytes32,bytes32,bytes32[],bytes[],uint256)`. No testnet deployment of the auction exists yet, so the bid path is tested against a fake chain only.
