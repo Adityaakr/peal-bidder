@@ -74,41 +74,70 @@ export function decisionJson(d: Decision): CanonicalValue {
   };
 }
 
+/** Planner output kept in a receipt, at most this many characters. */
+export const MAX_RAW_IN_RECEIPT = 8000;
+
 function jsonSafe(x: unknown): CanonicalValue {
-  // Planner output is untrusted and may hold anything; keep it as text.
+  // Planner output is untrusted and may hold anything; keep it as bounded text.
+  let text: string | undefined;
   try {
-    return JSON.stringify(x) ?? null;
+    text = JSON.stringify(x);
   } catch {
     return "[unserialisable]";
   }
+  if (text === undefined) return null;
+  return text.length > MAX_RAW_IN_RECEIPT ? `${text.slice(0, MAX_RAW_IN_RECEIPT)}…[truncated]` : text;
 }
 
-/** Rebuild the active mandate and its ledger from receipts. */
-export function stateFromReceipts(history: Receipt[]): { mandate?: PealMandateV1; mandateHash?: string; ledger: Ledger } {
+function decisionFromJson(d: Record<string, CanonicalValue>): BidDecision {
+  return {
+    kind: "bid",
+    auction: String(d.auction),
+    qty: BigInt(String(d.qty)),
+    tick: Number(d.tick),
+    escrow: BigInt(String(d.escrow)),
+    bond: BigInt(String(d.bond)),
+    outflow: BigInt(String(d.outflow)),
+    adjustments: [],
+  };
+}
+
+export interface RecoveredState {
+  mandate?: PealMandateV1;
+  mandateHash?: string;
+  ledger: Ledger;
+  /** A bid that was submitted with no result recorded (the agent stopped in between): counted as spent. */
+  dangling?: BidDecision;
+}
+
+/**
+ * Rebuild the active mandate and its ledger from receipts. A `submission`
+ * receipt is written before a bid is sent; one with no `result` after it means
+ * the agent stopped in between, so the bid may have executed and is counted.
+ */
+export function stateFromReceipts(history: Receipt[]): RecoveredState {
   let mandate: PealMandateV1 | undefined;
   let hash: string | undefined;
   let ledger = EMPTY_LEDGER;
+  let pending: BidDecision | undefined;
   for (const r of history) {
     const data = r.body.data as Record<string, CanonicalValue>;
     if (r.body.kind === "mandate-accepted" && typeof data.text === "string") {
+      if (pending) ledger = recordBid(ledger, pending); // belongs to the old mandate's ledger, which is then dropped
+      pending = undefined;
       mandate = decodeMandate(data.text);
       hash = mandateHash(data.text);
       ledger = EMPTY_LEDGER;
-    } else if (r.body.kind === "result" && hash && r.body.mandateHash === hash && data.counted === true) {
-      const d = data.decision as Record<string, CanonicalValue>;
-      ledger = recordBid(ledger, {
-        kind: "bid",
-        auction: String(d.auction),
-        qty: BigInt(String(d.qty)),
-        tick: Number(d.tick),
-        escrow: BigInt(String(d.escrow)),
-        bond: BigInt(String(d.bond)),
-        outflow: BigInt(String(d.outflow)),
-        adjustments: [],
-      });
+    } else if (r.body.kind === "submission" && hash && r.body.mandateHash === hash) {
+      if (pending) ledger = recordBid(ledger, pending); // two submissions in a row: the first never got a result
+      pending = decisionFromJson(data.decision as Record<string, CanonicalValue>);
+    } else if (r.body.kind === "result" && hash && r.body.mandateHash === hash) {
+      pending = undefined;
+      if (data.counted === true) ledger = recordBid(ledger, decisionFromJson(data.decision as Record<string, CanonicalValue>));
     }
   }
-  return { ...(mandate ? { mandate } : {}), ...(hash ? { mandateHash: hash } : {}), ledger };
+  if (pending) ledger = recordBid(ledger, pending);
+  return { ...(mandate ? { mandate } : {}), ...(hash ? { mandateHash: hash } : {}), ledger, ...(pending ? { dangling: pending } : {}) };
 }
 
 export class BidderAgent {
@@ -121,6 +150,16 @@ export class BidderAgent {
     this.mandate = s.mandate;
     this.hash = s.mandateHash;
     this.ledger = s.ledger;
+    if (s.dangling && s.mandateHash) {
+      // Say so in the log: the outcome of the last submission was never recorded.
+      deps.receipts.append("result", s.mandateHash, {
+        status: "unknown",
+        txHash: null,
+        reason: "the agent stopped after submitting this bid; its outcome was not recorded, so it is counted as spent",
+        counted: true,
+        decision: decisionJson(s.dangling),
+      });
+    }
   }
 
   get state(): { mandate?: PealMandateV1; mandateHash?: string; ledger: Ledger } {
@@ -167,6 +206,8 @@ export class BidderAgent {
     });
     if (plan.decision.kind !== "bid") return { kind: "decided", plan };
 
+    // Written before anything leaves the agent, so a crash mid-submission is counted on restart.
+    this.deps.receipts.append("submission", hash, { decision: decisionJson(plan.decision) });
     let submit: SubmitResult;
     try {
       submit = await this.deps.executor.submit(plan.decision, mandate);

@@ -63,7 +63,7 @@ Layers, from the outside in:
 | `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
 | `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 190 offline tests and 3 live planner checks (Vitest and fast-check); see below |
+| `test/` | 193 offline tests and 3 live planner checks (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -110,7 +110,7 @@ The planner uses Claude only when `ANTHROPIC_API_KEY` is set in the environment.
 - **On-chain key reading** (`test/keysource.test.ts`): selector, the 2,752-byte reply, and failing closed on no key, another algorithm, unproven possession, wrong length, empty or malformed data and RPC errors.
 - **Policy** (`test/policy.test.ts`): every clamp and skip rule, junk proposals, and a fuzz property over 2,000 random planner outputs and ledgers that no bid ever leaves the mandate.
 - **Planner** (`test/planner.test.ts`): the request (model, effort, structured output, fallbacks), the untrusted-text framing, and fixtures including **prompt-injection** cases: an "ignore your mandate" override that the model resists, one it obeys toward another auction (skipped, never redirected), one it obeys on size and tick (clamped), and a fake owner tag. Refusal, prose, schema-violating and truncated answers fall back to the rules.
-- **Receipts** and **agent loop** (`test/receipts.test.ts`, `test/agent.test.ts`): tampering, deletion, reordering, a wrong key, file permissions, restart recovery, unknown outcomes counted as spent.
+- **Receipts** and **agent loop** (`test/receipts.test.ts`, `test/agent.test.ts`): tampering, deletion, reordering, a wrong key, file permissions, restart recovery, unknown outcomes counted as spent, and a bid submitted just before a crash counted on the next start.
 - **Key split** (`test/accounts.test.ts`): the SDK and QoreSign derive the same keys; secret files are 0600 and never overwritten; the agent's file holds no mnemonic, and the agent refuses to run from one that does; `public.json` holds only public halves.
 - **Smart account** (`test/smart-account.test.ts`): the rule a mandate produces passes the SDK's own validators; the link is one owner-signed `[MsgUpdateSpendingRules, MsgRegisterAuthenticator]` with an EIP-191 proof by the agent's key, linked by its EVM address with the `evm` permission only.
 - **Relayer** (`test/relayer.test.ts`): the agent's signature over the v1 and v2 execution digests recovers to the agent's address; the relayer refuses other targets, accounts, relayers, native value and oversized gas without broadcasting; `success=false` is a final refusal with the chain's reason; a lost connection is "unknown" (counted as spent).

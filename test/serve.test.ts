@@ -146,7 +146,7 @@ describe("serve", () => {
     expect(t.claims).toEqual([{ auction: AUCTION_A, state: "Settled", claimed: 1 }]);
     expect(sent).toHaveLength(1);
     const check = verifyReceipts(new FileSink(path).read(), agentKeys.receiptKey.publicKey);
-    expect(check.ok && check.receipts.map((r) => r.body.kind)).toEqual(["mandate-accepted", "decision", "result", "claim"]);
+    expect(check.ok && check.receipts.map((r) => r.body.kind)).toEqual(["mandate-accepted", "decision", "submission", "result", "claim"]);
   });
 
   it("stops on the signal", async () => {

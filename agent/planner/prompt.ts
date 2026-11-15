@@ -25,6 +25,14 @@ Rules:
 
 A deterministic policy and the chain enforce every limit regardless of what you propose, so a proposal outside them is wasted: propose within them.`;
 
+/** Issuer text is bounded before it reaches the model: it is untrusted, and its length is paid for. */
+export const MAX_NAME = 200;
+export const MAX_DETAILS = 4000;
+
+function bounded(s: string, max: number): string {
+  return s.length > max ? `${s.slice(0, max)}…[truncated by the agent]` : s;
+}
+
 /** Ticks worth showing: 0, the ceiling, and evenly spaced points between (at most `n`). */
 function sampleTicks(ceiling: number, n = 9): number[] {
   if (ceiling <= n - 1) return Array.from({ length: ceiling + 1 }, (_, i) => i);
@@ -61,7 +69,7 @@ export function buildUserContent(input: PlannerInput): string {
         price: priceAt(a, t).toString(),
         max_qty: maxQty(ctx, a, t).toString(),
       })),
-      issuer_text_untrusted: { name: a.name, details: a.details },
+      issuer_text_untrusted: { name: bounded(a.name, MAX_NAME), details: bounded(a.details, MAX_DETAILS) },
     } as Record<string, CanonicalValue>;
   });
   const doc = {

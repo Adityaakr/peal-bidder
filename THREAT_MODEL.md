@@ -46,7 +46,9 @@ The split is the main defence against a compromised or misbehaving agent: the ke
 - The owner's key cannot be read (no key, another algorithm, possession not proven, wrong length, empty data, RPC error): refuse.
 - The receipts log does not verify: the agent will not start.
 - The nonce store is unreadable: the agent stops rather than resetting nonces.
-- The executor cannot tell whether a bid landed: the bid counts as spent. The relayer reports "unknown" for anything but a delivered result or a refusal with a code.
+- The executor cannot tell whether a bid landed: the bid counts as spent. A `submission` receipt is written before anything is sent; if the agent stops before the result is recorded, the next start counts the bid as spent and writes an `unknown` result saying so.
+- Untrusted text is bounded: the issuer's name and description to 200 and 4,000 characters in the prompt, planner output to 8,000 characters in a receipt, and an envelope to 256 KB before it is decoded.
+- A crash between accepting a mandate's nonce and recording the mandate leaves the agent without an active mandate (the nonce is spent): the owner sends a new mandate. This fails safe. The relayer reports "unknown" for anything but a delivered result or a refusal with a code.
 - `success=false` in a code-0 transaction (an authorised execution the chain refused, e.g. over the limit) is final: the chain consumed the key's nonce.
 - The owner CLI refuses to open an unscoped window for the agent.
 - One agent process per agent folder: every command that writes takes `agent/agent.lock`, so two processes cannot each spend the remaining budget or fork the receipts chain. A receipts log that was truncated or extended by anything else while the agent ran stops it.

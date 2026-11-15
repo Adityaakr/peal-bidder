@@ -146,3 +146,13 @@ From the approved design (decisions of 15 to 16 November 2026):
 - While wiring claims into the loop, the agent noticed that two `ReceiptLog` objects on one file (decisions and claims) would each keep their own position and fork the hash chain. The log now continues from the file's last line before each write, and refuses a log that was truncated or extended by anything else.
 
 **Human decisions in this step**: none new.
+
+### 2026-11-16: hardening (eighth pull request)
+
+**What the worker agent did**
+
+- Re-read its own spend accounting and found a gap: the ledger counted a bid only from its `result` receipt, so a crash after broadcasting and before that receipt would under-count the budget on restart. A `submission` receipt is now written before anything is sent; on restart a submission with no result is counted as spent and the agent writes an explicit `unknown` result.
+- Bounded untrusted text: the issuer's text in the prompt (length is both an injection surface and a cost), planner output kept in receipts, and envelope size before decoding.
+- Documented one fail-safe gap rather than closing it: a crash between accepting a mandate's nonce and recording the mandate leaves no active mandate; the owner re-sends.
+
+**Human decisions in this step**: none new.
