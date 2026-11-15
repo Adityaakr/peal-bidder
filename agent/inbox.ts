@@ -2,20 +2,18 @@
  * Agent side of the mandate channel: open a sealed mandate and decide whether
  * to act on it. Every check fails closed and returns a stable refusal code;
  * nothing is acted on unless every check passes.
+ *
+ * The envelope and the signature are qore-pq-kit `messaging` instructions
+ * (`openInstruction`, `verifyInstruction` with `requirePq`). What the kit does
+ * not know, the agent checks here: that the instruction's fields agree with the
+ * mandate it carries, the mandate's own fields, the owner's key from the
+ * chain, the start time, the pinned receipt key and the strictly increasing
+ * nonce.
  */
-import { isQoreSignError, verifyMessage } from "@qorechain/qoresign";
-import { envelopeFromText, isQoreSealError, open, type SealKeyPair } from "@qorechain/qoreseal";
-import {
-  MANDATE_SEAL_PURPOSE,
-  MandateError,
-  decodeMandate,
-  mandateHash,
-  mandateSealAad,
-  mandateSignData,
-  type PealMandateV1,
-} from "../common/mandate.ts";
+import { envelopeFromText, isQoreSealError, type SealKeyPair } from "@qorechain/qoreseal";
+import { InstructionRefused, isoSeconds, openInstruction, verifyInstruction, type SignedInstruction } from "qore-pq-kit/messaging";
+import { MANDATE_PURPOSE, MAX_LIFETIME_SECONDS, MandateError, decodeMandate, mandateHash, type PealMandateV1 } from "../common/mandate.ts";
 import type { Network } from "../common/network.ts";
-import { decodeSignedMandate, type SignedMandate } from "../common/signed.ts";
 import { PqKeyError, type PqKeySource } from "./keysource.ts";
 import type { MandateStore } from "./store.ts";
 
@@ -50,7 +48,7 @@ export interface AcceptedMandate {
   /** Canonical text, exactly as signed. */
   text: string;
   mandateHash: string;
-  signed: SignedMandate;
+  signed: SignedInstruction;
 }
 
 export interface AgentIdentity {
@@ -73,8 +71,31 @@ export interface InboxDeps {
   now: () => number;
 }
 
+/** The longest an instruction may live: the mandate's own limit plus a day for signing ahead of `notBefore`. */
+const MAX_INSTRUCTION_LIFETIME = MAX_LIFETIME_SECONDS + 86_400;
+
+const FIELDS = ["chainId", "from", "to", "purpose", "nonce", "issuedAt", "expiresAt", "body"] as const;
+
 function refuse(code: RefusalCode, message: string, hash?: string): MandateRefusal {
   return hash === undefined ? { ok: false, code, message } : { ok: false, code, message, mandateHash: hash };
+}
+
+function wellFormed(s: unknown): s is SignedInstruction {
+  if (typeof s !== "object" || s === null) return false;
+  const o = s as Record<string, unknown>;
+  const f = o.fields as Record<string, unknown> | undefined;
+  const sig = o.signature as Record<string, unknown> | undefined;
+  if (o.version !== 1 || typeof f !== "object" || f === null || typeof sig !== "object" || sig === null) return false;
+  if (!FIELDS.every((k) => typeof f[k] === "string")) return false;
+  const classical = sig.classical as Record<string, unknown> | undefined;
+  return (
+    typeof sig.signatureType === "string" &&
+    typeof classical === "object" &&
+    classical !== null &&
+    typeof classical.keyType === "string" &&
+    typeof classical.publicKey === "string" &&
+    typeof classical.signature === "string"
+  );
 }
 
 /**
@@ -91,30 +112,36 @@ export async function receiveMandate(envelopeText: string, deps: InboxDeps): Pro
     return refuse("ENVELOPE_MALFORMED", "not a QoreSeal envelope");
   }
 
-  let plaintext: Uint8Array;
+  let signed: unknown;
   try {
-    plaintext = open({
-      chainId: network.chainId,
-      purpose: MANDATE_SEAL_PURPOSE,
-      envelope,
-      keys: identity.sealKeys,
-      aad: mandateSealAad(identity.owner, identity.address),
-    });
+    signed = openInstruction({ envelope, keys: identity.sealKeys, chainId: network.chainId, to: identity.address, purpose: MANDATE_PURPOSE });
   } catch (err) {
+    if (err instanceof InstructionRefused) return refuse("PAYLOAD_MALFORMED", err.reason);
     const code = isQoreSealError(err) ? err.code : "UNKNOWN";
-    return refuse("SEAL_OPEN_FAILED", `the envelope does not open for this agent and owner (${code})`);
+    return refuse("SEAL_OPEN_FAILED", `the envelope does not open for this agent and purpose (${code})`);
   }
-
-  const signed = decodeSignedMandate(plaintext);
-  if (!signed) return refuse("PAYLOAD_MALFORMED", "the envelope does not hold a signed mandate");
-  const hash = mandateHash(signed.mandate);
+  if (!wellFormed(signed)) return refuse("PAYLOAD_MALFORMED", "the envelope does not hold a signed instruction");
+  const f = signed.fields;
+  const hash = mandateHash(f.body);
 
   let mandate: PealMandateV1;
   try {
-    mandate = decodeMandate(signed.mandate);
+    mandate = decodeMandate(f.body);
   } catch (err) {
     if (err instanceof MandateError) return refuse(err.code, err.message, hash);
     throw err;
+  }
+
+  // The instruction's fields must say what the mandate inside says.
+  if (
+    f.purpose !== MANDATE_PURPOSE ||
+    f.chainId !== mandate.chainId ||
+    f.from !== mandate.owner ||
+    f.to !== mandate.agent ||
+    f.nonce !== String(mandate.nonce) ||
+    f.expiresAt !== isoSeconds(new Date(mandate.expiresAt * 1000))
+  ) {
+    return refuse("SCHEMA_INVALID", "the instruction's fields disagree with the mandate it carries", hash);
   }
 
   if (mandate.chainId !== network.chainId || mandate.evmChainId !== network.evmChainId) {
@@ -134,22 +161,25 @@ export async function receiveMandate(envelopeText: string, deps: InboxDeps): Pro
     return refuse("OWNER_KEY_UNAVAILABLE", `the owner's ML-DSA-87 key cannot be read from the chain (${code})`, hash);
   }
 
+  const now = deps.now();
   try {
-    verifyMessage({
+    verifyInstruction(signed, ownerKey, {
       chainId: network.chainId,
-      signer: mandate.owner,
-      data: mandateSignData(signed.mandate),
-      signature: signed.signature,
-      pqPublicKey: ownerKey,
-      requirePq: true,
+      to: identity.address,
+      purpose: MANDATE_PURPOSE,
+      from: identity.owner,
+      now: new Date(now * 1000),
+      maxLifetimeSeconds: MAX_INSTRUCTION_LIFETIME,
     });
   } catch (err) {
-    const code = isQoreSignError(err) ? err.code : "UNKNOWN";
-    return refuse("SIGNATURE_INVALID", `the owner's signature does not verify (${code})`, hash);
+    const reason = err instanceof InstructionRefused ? err.reason : (err as Error).message;
+    if (reason.startsWith("bad signature")) return refuse("SIGNATURE_INVALID", `the owner's signature does not verify (${reason})`, hash);
+    if (reason.startsWith("expired")) return refuse("EXPIRED", `the mandate ${reason}`, hash);
+    if (reason.startsWith("issued in the future")) return refuse("NOT_YET_VALID", `the mandate was ${reason}`, hash);
+    return refuse("SCHEMA_INVALID", reason, hash);
   }
 
   // From here on the mandate is authenticated.
-  const now = deps.now();
   if (now < mandate.notBefore) return refuse("NOT_YET_VALID", `the mandate starts at ${mandate.notBefore}`, hash);
   if (now >= mandate.expiresAt) return refuse("EXPIRED", `the mandate expired at ${mandate.expiresAt}`, hash);
 
@@ -160,5 +190,5 @@ export async function receiveMandate(envelopeText: string, deps: InboxDeps): Pro
   const accepted = await deps.store.acceptNonce(mandate.owner, mandate.nonce, hash);
   if (!accepted) return refuse("REPLAYED", `nonce ${mandate.nonce} is not above the last accepted nonce`, hash);
 
-  return { ok: true, mandate, text: signed.mandate, mandateHash: hash, signed };
+  return { ok: true, mandate, text: f.body, mandateHash: hash, signed };
 }

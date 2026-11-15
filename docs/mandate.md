@@ -34,18 +34,30 @@ Canonical JSON (`common/canonical.ts`): keys sorted, printable ASCII keys, no wh
 
 `mandateHash` = hex SHA3-256 of the canonical text.
 
-## Signature
+## Signature and envelope (qore-pq-kit `messaging`)
 
-The owner signs `"peal-bidder/mandate/v1\n" + canonicalText` with QoreSign `signMessage` (secp256k1 ADR-36 + ML-DSA-87 over `"qorechain-msg-v1|" + chainId + "|" + data`). The agent verifies with `verifyMessage({ requirePq: true })` against the ML-DSA-87 key the chain reports for `owner` through the `pqcKeyStatus` precompile.
+A mandate travels as the body of a qore-pq-kit `messaging` instruction (`qore-pq-kit/messaging`, tag `v0.4.0`). The instruction's fields are:
 
-## Envelope
+| Field | Value |
+|---|---|
+| `chainId` | the mandate's `chainId` |
+| `from` | the mandate's `owner` |
+| `to` | the mandate's `agent` |
+| `purpose` | `peal-bidder/mandate/v1` |
+| `nonce` | the mandate's `nonce`, as a decimal string |
+| `issuedAt` | when the owner signed, `YYYY-MM-DDTHH:MM:SSZ` |
+| `expiresAt` | the mandate's `expiresAt`, as `YYYY-MM-DDTHH:MM:SSZ` |
+| `body` | the canonical mandate text |
 
-The envelope plaintext is `{"v":1,"mandate":<canonical text>,"signature":<QoreSign MessageSignature>}`. It is sealed with QoreSeal (hybrid ML-KEM-1024 + X25519 by default) under:
+**Signature.** The owner signs `"qore-pq-kit instruction v1\n" + JSON.stringify([chainId, from, to, purpose, nonce, issuedAt, expiresAt, body])` (the kit's `instructionBytes`). The signature is QoreSign `signMessage`, secp256k1 ADR-36 plus ML-DSA-87 over `"qorechain-msg-v1|" + chainId + "|" + data`. The agent verifies it with the kit's `verifyInstruction`, which requires the ML-DSA-87 half, against the key the chain reports for `owner` through the `pqcKeyStatus` precompile.
 
-- purpose `peal-bidder/mandate/v1`;
-- AAD `"peal-bidder/mandate/v1|" + owner + "|" + agent`;
+**Envelope.** The kit's `sealInstruction` seals the JSON of the signed instruction with QoreSeal (hybrid ML-KEM-1024 + X25519 by default):
+- under the purpose `qore-pq-kit/instruction/v1`;
+- with AAD `"qore-pq-kit/instruction/v1|" + to + "|" + purpose`.
 
-and delivered as `qoreseal:` text.
+It is delivered as `qoreseal:` text. Because of the AAD, an envelope opens only for its recipient and only under the mandate purpose.
+
+**Fields must agree with the body.** The agent refuses an instruction whose `chainId`, `from`, `to`, `nonce` or `expiresAt` differ from the mandate inside it, so the two can never tell different stories.
 
 ## Refusals
 
@@ -54,17 +66,17 @@ The agent checks, in order, and stops at the first failure:
 | Code | When |
 |---|---|
 | `ENVELOPE_MALFORMED` | Not `qoreseal:` text |
-| `SEAL_OPEN_FAILED` | Does not open with the agent's keys under this purpose, chain and AAD |
+| `SEAL_OPEN_FAILED` | Does not open with the agent's keys, for this agent, chain and purpose |
 | `PAYLOAD_MALFORMED` | The plaintext is not a signed mandate |
 | `NOT_CANONICAL` | The mandate text is not canonical JSON |
-| `SCHEMA_INVALID` | A field is missing, extra, of the wrong type or inconsistent |
+| `SCHEMA_INVALID` | A field is missing, extra, of the wrong type or inconsistent, or the instruction's fields disagree with the mandate |
 | `WRONG_CHAIN` | `chainId` or `evmChainId` is not the agent's network |
 | `WRONG_AGENT` | `agent` is not this agent |
 | `WRONG_OWNER` | `owner` is not this agent's owner |
 | `SIGNATURE_NOT_PQ` | The signature has no ML-DSA-87 part |
 | `OWNER_KEY_UNAVAILABLE` | The owner's key cannot be read from the chain (fails closed) |
 | `SIGNATURE_INVALID` | The hybrid signature does not verify |
-| `NOT_YET_VALID` / `EXPIRED` | Outside `[notBefore, expiresAt)` |
+| `NOT_YET_VALID` / `EXPIRED` | Outside `[notBefore, expiresAt)`, or signed in the future (more than 120 s of clock skew) |
 | `RECEIPT_KEY_MISMATCH` | `receiptKey` is not this agent's receipt key |
 | `REPLAYED` | `nonce` is not above the last accepted nonce |
 

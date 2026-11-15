@@ -120,3 +120,15 @@ From the approved design (decisions of 15 to 16 November 2026):
 **Noticed, not done here**: the kit also gained a `messaging` module written for Peal Bidder's mandates. Moving the mandate channel onto it changes the mandate's wire format, so it is the next slice rather than part of this one.
 
 **Human decisions in this step**: use the smart-account path and the `v0.4.0` tag (relayed by the orchestrator).
+
+### 2026-11-16: the mandate channel on qore-pq-kit `messaging` (sixth pull request)
+
+**Brief**: the messaging slice: move the mandate's signature and envelope onto the kit's `messaging` module, which the kit worker wrote for Peal Bidder.
+
+**What the worker agent did**
+
+- Made a mandate the body of a kit instruction (purpose `peal-bidder/mandate/v1`), signed with `signInstruction` and sealed with `sealInstruction`; the agent opens with `openInstruction` and verifies with `verifyInstruction` against the owner's key from the chain. Its own wire format (`common/signed.ts`, the sign prefix, the owner-and-agent AAD) is gone.
+- Kept the Bidder's checks the kit cannot make (the mandate's fields, the start time, the pinned receipt key, the strictly increasing nonce) and the same fifteen refusal codes, and added one rule the new format needs: the instruction's fields must agree with the mandate inside it. New tests cover a disagreeing nonce, expiry and chain, an envelope bound to another purpose, and an instruction signed in the future.
+- Noticed one behaviour change and kept it: a validly signed mandate from an account the agent does not serve is now refused as `WRONG_OWNER` (before, the owner-bound AAD made it fail to open). The kit's AAD binds the recipient and the purpose instead.
+
+**Human decisions in this step**: none new.

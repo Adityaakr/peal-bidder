@@ -2,21 +2,22 @@ import { describe, expect, it } from "vitest";
 import { signMessage } from "@qorechain/qoresign";
 import { envelopeToText, seal } from "@qorechain/qoreseal";
 import { utf8ToBytes } from "@noble/hashes/utils.js";
+import { SEAL_PURPOSE, instructionBytes, sealInstruction, type InstructionFields, type SignedInstruction } from "qore-pq-kit/messaging";
 import { canonicalize } from "../common/canonical.ts";
-import { MANDATE_SEAL_PURPOSE, encodeMandate, mandateSealAad, mandateSignData, type PealMandateV1 } from "../common/mandate.ts";
+import { MANDATE_PURPOSE, encodeMandate, type PealMandateV1 } from "../common/mandate.ts";
 import { TESTNET_CHAIN_ID, TESTNET_EVM_CHAIN_ID } from "../common/network.ts";
-import { encodeSignedMandate, type SignedMandate } from "../common/signed.ts";
 import { receiveMandate, type InboxDeps } from "../agent/inbox.ts";
 import { StaticPqKeySource } from "../agent/keysource.ts";
 import { MemoryMandateStore } from "../agent/store.ts";
 import { receiptKeyHash } from "../agent/receipts.ts";
-import { sealMandate, signMandate } from "../owner-cli/mandate.ts";
+import { mandateFields, sealMandate, signMandate } from "../owner-cli/mandate.ts";
 import { NOW, newAccount, newAgent, sampleMandate, type TestAccount, type TestAgent } from "./helpers.ts";
 
 const owner = newAccount();
 const agent = newAgent();
 const otherAgent = newAgent();
 const attacker = newAccount();
+const ISSUED = new Date((NOW - 30) * 1000);
 
 function deps(over: Partial<InboxDeps> = {}): InboxDeps {
   return {
@@ -39,30 +40,40 @@ function ownerKeys(a: TestAccount) {
 }
 
 /** The normal owner flow: sign, then seal to the agent. */
-function sealed(m: PealMandateV1, to: TestAgent = agent): string {
-  return sealMandate({ signed: signMandate(m, ownerKeys(owner)), mandate: m, recipient: to.recipient }).envelope;
+function sealed(m: PealMandateV1, to: TestAgent = agent, issued = ISSUED): string {
+  return sealMandate({ signed: signMandate(m, ownerKeys(owner), issued), mandate: m, recipient: to.recipient }).envelope;
 }
 
-/** Seal any payload to the agent, with the AAD the agent expects unless told otherwise. */
-function sealRaw(payload: Uint8Array, aad = mandateSealAad(owner.address, agent.address), chainId = TESTNET_CHAIN_ID): string {
-  return envelopeToText(
-    seal({ chainId, purpose: MANDATE_SEAL_PURPOSE, recipients: [agent.recipient], plaintext: payload, aad }),
-  );
+/** Instruction fields for a mandate, with any field overridden. */
+function fields(m: PealMandateV1, over: Partial<InstructionFields> = {}): InstructionFields {
+  return { ...mandateFields(m, ISSUED), ...over };
 }
 
-/** Sign arbitrary mandate text with `signer`'s keys. */
-function signText(text: string, signer: TestAccount, opts: { chainId?: string; pq?: boolean } = {}): SignedMandate {
+/** Sign fields with `signer`'s keys (QoreSign only signs for the signer's own account). */
+function signAs(f: InstructionFields, signer: TestAccount, opts: { chainId?: string; pq?: boolean } = {}): SignedInstruction {
   const signature = signMessage({
-    chainId: opts.chainId ?? TESTNET_CHAIN_ID,
+    chainId: opts.chainId ?? f.chainId,
     signer: signer.address,
-    data: mandateSignData(text),
+    data: instructionBytes(f),
     classicalKey: signer.classicalKey,
     ...(opts.pq === false ? {} : { pqKey: signer.pqKey }),
   });
-  return { v: 1, mandate: text, signature };
+  return { version: 1, fields: f, signature };
 }
 
-describe("receiveMandate", () => {
+/** Seal any bytes to the agent, the way qore-pq-kit seals an instruction, with any binding overridden. */
+function sealRaw(plaintext: Uint8Array, o: { to?: string; purpose?: string; chainId?: string; recipient?: TestAgent } = {}): string {
+  const aad = utf8ToBytes(`${SEAL_PURPOSE}|${(o.to ?? agent.address).toLowerCase()}|${o.purpose ?? MANDATE_PURPOSE}`);
+  return envelopeToText(
+    seal({ chainId: o.chainId ?? TESTNET_CHAIN_ID, purpose: SEAL_PURPOSE, recipients: [(o.recipient ?? agent).recipient], plaintext, aad }),
+  );
+}
+
+function sealSigned(s: SignedInstruction, o: Parameters<typeof sealRaw>[1] = {}): string {
+  return sealRaw(utf8ToBytes(JSON.stringify(s)), o);
+}
+
+describe("receiveMandate (on qore-pq-kit messaging)", () => {
   it("accepts a mandate signed by the owner and sealed to the agent", async () => {
     const m = sampleMandate(owner, agent);
     const res = await receiveMandate(sealed(m), deps());
@@ -71,195 +82,191 @@ describe("receiveMandate", () => {
     expect(res.mandate).toEqual(m);
     expect(res.text).toBe(encodeMandate(m));
     expect(res.mandateHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(res.signed.fields).toMatchObject({ purpose: MANDATE_PURPOSE, from: owner.address, to: agent.address, nonce: "1" });
   });
 
-  it("refuses a forged signature: the attacker signs with its own keys in the owner's name", async () => {
+  it("the kit's sealInstruction and the test's raw seal agree", async () => {
     const m = sampleMandate(owner, agent);
-    const forged = signText(encodeMandate(m), attacker);
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(forged)), deps());
+    const s = signMandate(m, ownerKeys(owner), ISSUED);
+    expect((await receiveMandate(envelopeToText(sealInstruction(s, agent.recipient)), deps())).ok).toBe(true);
+    expect((await receiveMandate(sealSigned(s), deps({ store: new MemoryMandateStore() }))).ok).toBe(true);
+  });
+
+  it("refuses a forgery: the attacker signs as itself, then names the owner as sender", async () => {
+    const m = sampleMandate(owner, agent);
+    const s = signAs(fields(m, { from: attacker.address }), attacker);
+    const res = await receiveMandate(sealSigned({ ...s, fields: { ...s.fields, from: owner.address } }), deps());
     expect(res).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
   });
 
-  it("refuses a forged signature that carries the owner's public key", async () => {
+  it("refuses a forgery that carries the owner's public key", async () => {
     const m = sampleMandate(owner, agent);
-    const forged = signText(encodeMandate(m), attacker);
-    const ownerPub = signMandate(m, ownerKeys(owner)).signature.classical.publicKey;
-    forged.signature = { ...forged.signature, classical: { ...forged.signature.classical, publicKey: ownerPub } };
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(forged)), deps());
-    expect(res).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
+    const s = signAs(fields(m, { from: attacker.address }), attacker);
+    const ownerPub = signMandate(m, ownerKeys(owner), ISSUED).signature.classical.publicKey;
+    const forged = { ...s, fields: { ...s.fields, from: owner.address }, signature: { ...s.signature, classical: { ...s.signature.classical, publicKey: ownerPub } } };
+    expect(await receiveMandate(sealSigned(forged), deps())).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
   });
 
   it("refuses a signature made with an ML-DSA key other than the one on chain", async () => {
     const m = sampleMandate(owner, agent);
     const chainHasOther = new StaticPqKeySource().set(owner.address, attacker.pqKey.publicKey);
-    const res = await receiveMandate(sealed(m), deps({ keys: chainHasOther }));
-    expect(res).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
+    expect(await receiveMandate(sealed(m), deps({ keys: chainHasOther }))).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
   });
 
-  it("refuses a classical key that is right but an ML-DSA signature from another key", async () => {
+  it("refuses the owner's classical key with an ML-DSA signature from another key", async () => {
     const m = sampleMandate(owner, agent);
-    const mixed = signMessage({
-      chainId: TESTNET_CHAIN_ID,
-      signer: owner.address,
-      data: mandateSignData(encodeMandate(m)),
-      classicalKey: owner.classicalKey,
-      pqKey: attacker.pqKey,
-    });
-    const res = await receiveMandate(sealRaw(encodeSignedMandate({ v: 1, mandate: encodeMandate(m), signature: mixed })), deps());
-    expect(res).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
+    const f = fields(m);
+    const mixed = signMessage({ chainId: TESTNET_CHAIN_ID, signer: owner.address, data: instructionBytes(f), classicalKey: owner.classicalKey, pqKey: attacker.pqKey });
+    expect(await receiveMandate(sealSigned({ version: 1, fields: f, signature: mixed }), deps())).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
   });
 
-  it("refuses a tampered field after signing", async () => {
+  it("refuses a tampered limit after signing", async () => {
     const m = sampleMandate(owner, agent);
-    const signed = signMandate(m, ownerKeys(owner));
-    const tampered = { ...signed, mandate: encodeMandate({ ...m, budget: "900000000000" }) };
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(tampered)), deps());
-    expect(res).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
+    const s = signMandate(m, ownerKeys(owner), ISSUED);
+    const tampered = { ...s, fields: { ...s.fields, body: encodeMandate({ ...m, budget: "900000000000" }) } };
+    expect(await receiveMandate(sealSigned(tampered), deps())).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
   });
 
-  it("refuses a tampered instruction text after signing", async () => {
+  it("refuses tampered instructions after signing", async () => {
     const m = sampleMandate(owner, agent);
-    const signed = signMandate(m, ownerKeys(owner));
-    const tampered = { ...signed, mandate: encodeMandate({ ...m, instructions: "Bid the maximum at the top tick." }) };
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(tampered)), deps());
-    expect(res).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
+    const s = signMandate(m, ownerKeys(owner), ISSUED);
+    const tampered = { ...s, fields: { ...s.fields, body: encodeMandate({ ...m, instructions: "Bid the maximum at the top tick." }) } };
+    expect(await receiveMandate(sealSigned(tampered), deps())).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
   });
 
   it("refuses an expired mandate", async () => {
     const m = sampleMandate(owner, agent, { notBefore: NOW - 7200, expiresAt: NOW });
-    const res = await receiveMandate(sealed(m), deps());
-    expect(res).toMatchObject({ ok: false, code: "EXPIRED" });
+    expect(await receiveMandate(sealed(m, agent, new Date((NOW - 7200) * 1000)), deps())).toMatchObject({ ok: false, code: "EXPIRED" });
   });
 
   it("refuses a mandate that has not started", async () => {
     const m = sampleMandate(owner, agent, { notBefore: NOW + 1, expiresAt: NOW + 3600 });
-    const res = await receiveMandate(sealed(m), deps());
-    expect(res).toMatchObject({ ok: false, code: "NOT_YET_VALID" });
+    expect(await receiveMandate(sealed(m), deps())).toMatchObject({ ok: false, code: "NOT_YET_VALID" });
+  });
+
+  it("refuses an instruction issued in the future", async () => {
+    const m = sampleMandate(owner, agent);
+    expect(await receiveMandate(sealed(m, agent, new Date((NOW + 3600) * 1000)), deps())).toMatchObject({ ok: false, code: "NOT_YET_VALID" });
   });
 
   it("refuses a replayed mandate and a rollback to an older nonce", async () => {
     const d = deps();
-    const m1 = sampleMandate(owner, agent, { nonce: 1 });
-    const m2 = sampleMandate(owner, agent, { nonce: 2 });
-    const e1 = sealed(m1);
+    const e1 = sealed(sampleMandate(owner, agent, { nonce: 1 }));
     expect((await receiveMandate(e1, d)).ok).toBe(true);
     expect(await receiveMandate(e1, d)).toMatchObject({ ok: false, code: "REPLAYED" });
-    expect((await receiveMandate(sealed(m2), d)).ok).toBe(true);
-    expect(await receiveMandate(sealed(m1), d)).toMatchObject({ ok: false, code: "REPLAYED" });
+    expect((await receiveMandate(sealed(sampleMandate(owner, agent, { nonce: 2 })), d)).ok).toBe(true);
+    expect(await receiveMandate(sealed(sampleMandate(owner, agent, { nonce: 1 })), d)).toMatchObject({ ok: false, code: "REPLAYED" });
   });
 
   it("does not burn the nonce of a mandate it refuses", async () => {
     const d = deps();
     const m = sampleMandate(owner, agent, { nonce: 7 });
-    const signed = signMandate(m, ownerKeys(owner));
-    const tampered = { ...signed, mandate: encodeMandate({ ...m, maxTick: 99 }) };
-    expect((await receiveMandate(sealRaw(encodeSignedMandate(tampered)), d)).ok).toBe(false);
+    const s = signMandate(m, ownerKeys(owner), ISSUED);
+    const tampered = { ...s, fields: { ...s.fields, body: encodeMandate({ ...m, maxTick: 99 }) } };
+    expect((await receiveMandate(sealSigned(tampered), d)).ok).toBe(false);
     expect((await receiveMandate(sealed(m), d)).ok).toBe(true);
   });
 
-  it("refuses a mandate for another chain", async () => {
+  it("refuses a mandate for another chain, sealed for that chain (the envelope does not open here)", async () => {
     const m = sampleMandate(owner, agent, { chainId: "qorechain-mainnet" });
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(signText(encodeMandate(m), owner, { chainId: "qorechain-mainnet" }))), deps());
-    expect(res).toMatchObject({ ok: false, code: "WRONG_CHAIN" });
+    expect(await receiveMandate(sealed(m), deps())).toMatchObject({ ok: false, code: "SEAL_OPEN_FAILED" });
+  });
+
+  it("refuses a mandate for another chain, even when the envelope is sealed for this one", async () => {
+    const m = sampleMandate(owner, agent, { chainId: "qorechain-mainnet" });
+    const s = signAs(fields(m), owner);
+    expect(await receiveMandate(sealSigned(s), deps())).toMatchObject({ ok: false, code: "WRONG_CHAIN" });
   });
 
   it("refuses a mandate for another EVM chain id", async () => {
-    const m = sampleMandate(owner, agent, { evmChainId: 1 });
-    const res = await receiveMandate(sealed(m), deps());
-    expect(res).toMatchObject({ ok: false, code: "WRONG_CHAIN" });
+    expect(await receiveMandate(sealed(sampleMandate(owner, agent, { evmChainId: 1 })), deps())).toMatchObject({ ok: false, code: "WRONG_CHAIN" });
   });
 
   it("refuses a signature made for another chain over a mandate that names this one", async () => {
     const m = sampleMandate(owner, agent);
-    const other = signText(encodeMandate(m), owner, { chainId: "qorechain-mainnet" });
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(other)), deps());
-    expect(res).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
+    const s = signAs(fields(m), owner, { chainId: "qorechain-mainnet" });
+    expect(await receiveMandate(sealSigned(s), deps())).toMatchObject({ ok: false, code: "SIGNATURE_INVALID" });
   });
 
   it("refuses an envelope sealed under another chain id", async () => {
-    const m = sampleMandate(owner, agent);
-    const text = sealRaw(encodeSignedMandate(signMandate(m, ownerKeys(owner))), undefined, "qorechain-mainnet");
-    expect(await receiveMandate(text, deps())).toMatchObject({ ok: false, code: "SEAL_OPEN_FAILED" });
+    const s = signMandate(sampleMandate(owner, agent), ownerKeys(owner), ISSUED);
+    expect(await receiveMandate(sealSigned(s, { chainId: "qorechain-mainnet" }), deps())).toMatchObject({ ok: false, code: "SEAL_OPEN_FAILED" });
   });
 
   it("refuses a mandate sealed to another agent", async () => {
-    const m = sampleMandate(owner, otherAgent);
-    const res = await receiveMandate(sealed(m, otherAgent), deps());
-    expect(res).toMatchObject({ ok: false, code: "SEAL_OPEN_FAILED" });
+    expect(await receiveMandate(sealed(sampleMandate(owner, otherAgent), otherAgent), deps())).toMatchObject({ ok: false, code: "SEAL_OPEN_FAILED" });
   });
 
-  it("refuses another agent's mandate forwarded to this agent", async () => {
-    const m = sampleMandate(owner, otherAgent);
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(signMandate(m, ownerKeys(owner)))), deps());
-    expect(res).toMatchObject({ ok: false, code: "WRONG_AGENT" });
+  it("refuses another agent's mandate re-sealed to this agent", async () => {
+    const s = signMandate(sampleMandate(owner, otherAgent), ownerKeys(owner), ISSUED);
+    expect(await receiveMandate(sealSigned(s), deps())).toMatchObject({ ok: false, code: "WRONG_AGENT" });
   });
 
-  it("refuses an envelope whose additional data names another owner", async () => {
-    const m = sampleMandate(owner, agent);
-    const text = sealRaw(encodeSignedMandate(signMandate(m, ownerKeys(owner))), mandateSealAad(attacker.address, agent.address));
-    expect(await receiveMandate(text, deps())).toMatchObject({ ok: false, code: "SEAL_OPEN_FAILED" });
+  it("refuses an envelope bound to another purpose", async () => {
+    const s = signMandate(sampleMandate(owner, agent), ownerKeys(owner), ISSUED);
+    expect(await receiveMandate(sealSigned(s, { purpose: "peal-bidder/other/v1" }), deps())).toMatchObject({ ok: false, code: "SEAL_OPEN_FAILED" });
   });
 
   it("refuses a validly signed mandate from an owner the agent does not serve", async () => {
     const m = sampleMandate(attacker, agent);
-    const signed = signMandate(m, ownerKeys(attacker));
     const keys = new StaticPqKeySource().set(attacker.address, attacker.pqKey.publicKey);
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(signed)), deps({ keys }));
-    expect(res).toMatchObject({ ok: false, code: "WRONG_OWNER" });
+    expect(await receiveMandate(sealSigned(signMandate(m, ownerKeys(attacker), ISSUED)), deps({ keys }))).toMatchObject({ ok: false, code: "WRONG_OWNER" });
   });
 
   it("refuses a classical-only signature", async () => {
-    const m = sampleMandate(owner, agent);
-    const classical = signText(encodeMandate(m), owner, { pq: false });
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(classical)), deps());
-    expect(res).toMatchObject({ ok: false, code: "SIGNATURE_NOT_PQ" });
+    const s = signAs(fields(sampleMandate(owner, agent)), owner, { pq: false });
+    expect(await receiveMandate(sealSigned(s), deps())).toMatchObject({ ok: false, code: "SIGNATURE_NOT_PQ" });
   });
 
   it("refuses when the owner has no ML-DSA key on chain", async () => {
-    const m = sampleMandate(owner, agent);
-    const res = await receiveMandate(sealed(m), deps({ keys: new StaticPqKeySource() }));
-    expect(res).toMatchObject({ ok: false, code: "OWNER_KEY_UNAVAILABLE" });
+    expect(await receiveMandate(sealed(sampleMandate(owner, agent)), deps({ keys: new StaticPqKeySource() }))).toMatchObject({ ok: false, code: "OWNER_KEY_UNAVAILABLE" });
   });
 
   it("refuses when the key cannot be read (fails closed on an RPC error)", async () => {
-    const m = sampleMandate(owner, agent);
     const broken = { pqPublicKey: async () => Promise.reject(new Error("connection refused")) };
-    const res = await receiveMandate(sealed(m), deps({ keys: broken }));
-    expect(res).toMatchObject({ ok: false, code: "OWNER_KEY_UNAVAILABLE" });
+    expect(await receiveMandate(sealed(sampleMandate(owner, agent)), deps({ keys: broken }))).toMatchObject({ ok: false, code: "OWNER_KEY_UNAVAILABLE" });
   });
 
-  it("refuses non-canonical text even when it is correctly signed", async () => {
+  it("refuses non-canonical mandate text even when it is correctly signed", async () => {
     const m = sampleMandate(owner, agent);
-    const pretty = JSON.stringify(JSON.parse(encodeMandate(m)), null, 2);
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(signText(pretty, owner))), deps());
-    expect(res).toMatchObject({ ok: false, code: "NOT_CANONICAL" });
+    const s = signAs(fields(m, { body: JSON.stringify(JSON.parse(encodeMandate(m)), null, 2) }), owner);
+    expect(await receiveMandate(sealSigned(s), deps())).toMatchObject({ ok: false, code: "NOT_CANONICAL" });
   });
 
   it("refuses duplicate keys, which JSON.parse would silently collapse", async () => {
     const m = sampleMandate(owner, agent);
-    const text = encodeMandate(m).replace('"budget":"500000000"', '"budget":"1","budget":"500000000"');
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(signText(text, owner))), deps());
-    expect(res).toMatchObject({ ok: false, code: "NOT_CANONICAL" });
+    const body = encodeMandate(m).replace('"budget":"500000000"', '"budget":"1","budget":"500000000"');
+    expect(await receiveMandate(sealSigned(signAs(fields(m, { body }), owner)), deps())).toMatchObject({ ok: false, code: "NOT_CANONICAL" });
   });
 
   it("refuses a correctly signed mandate whose limits are inconsistent", async () => {
     const m = sampleMandate(owner, agent);
-    const text = canonicalize({ ...m, maxPerBid: "600000000" });
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(signText(text, owner))), deps());
-    expect(res).toMatchObject({ ok: false, code: "SCHEMA_INVALID" });
+    const body = canonicalize({ ...m, maxPerBid: "600000000" });
+    expect(await receiveMandate(sealSigned(signAs(fields(m, { body }), owner)), deps())).toMatchObject({ ok: false, code: "SCHEMA_INVALID" });
   });
 
   it("refuses a correctly signed mandate with an extra field", async () => {
     const m = sampleMandate(owner, agent);
-    const text = canonicalize({ ...m, ignoreLimits: true });
-    const res = await receiveMandate(sealRaw(encodeSignedMandate(signText(text, owner))), deps());
-    expect(res).toMatchObject({ ok: false, code: "SCHEMA_INVALID" });
+    const body = canonicalize({ ...m, ignoreLimits: true });
+    expect(await receiveMandate(sealSigned(signAs(fields(m, { body }), owner)), deps())).toMatchObject({ ok: false, code: "SCHEMA_INVALID" });
   });
+
+  for (const [what, over] of [
+    ["nonce", { nonce: "99" }],
+    ["expiry", { expiresAt: "2099-01-01T00:00:00Z" }],
+    ["chain", { chainId: "qorechain-other" }],
+  ] as const) {
+    it(`refuses a signed instruction whose ${what} disagrees with the mandate inside it`, async () => {
+      const m = sampleMandate(owner, agent);
+      const s = signAs(fields(m, over), owner);
+      const res = await receiveMandate(sealSigned(s, over.chainId ? { chainId: TESTNET_CHAIN_ID } : {}), deps());
+      expect(res).toMatchObject({ ok: false, code: "SCHEMA_INVALID" });
+    });
+  }
 
   it("refuses a mandate that pins another receipt key", async () => {
     const m = sampleMandate(owner, agent, { receiptKey: receiptKeyHash(otherAgent.receiptKey.publicKey) });
-    const res = await receiveMandate(sealed(m), deps());
-    expect(res).toMatchObject({ ok: false, code: "RECEIPT_KEY_MISMATCH" });
+    expect(await receiveMandate(sealed(m), deps())).toMatchObject({ ok: false, code: "RECEIPT_KEY_MISMATCH" });
   });
 
   it("refuses text that is not an envelope", async () => {
@@ -267,9 +274,10 @@ describe("receiveMandate", () => {
     expect(await receiveMandate("qoreseal:!!!", deps())).toMatchObject({ ok: false, code: "ENVELOPE_MALFORMED" });
   });
 
-  it("refuses an envelope that holds something other than a signed mandate", async () => {
+  it("refuses an envelope that holds something other than a signed instruction", async () => {
     expect(await receiveMandate(sealRaw(utf8ToBytes("not json")), deps())).toMatchObject({ ok: false, code: "PAYLOAD_MALFORMED" });
     expect(await receiveMandate(sealRaw(utf8ToBytes('{"v":1}')), deps())).toMatchObject({ ok: false, code: "PAYLOAD_MALFORMED" });
+    expect(await receiveMandate(sealRaw(utf8ToBytes('{"version":1,"fields":{"body":1},"signature":{}}')), deps())).toMatchObject({ ok: false, code: "PAYLOAD_MALFORMED" });
     expect(await receiveMandate(sealRaw(new Uint8Array([0xff, 0xfe])), deps())).toMatchObject({ ok: false, code: "PAYLOAD_MALFORMED" });
   });
 });

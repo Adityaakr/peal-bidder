@@ -9,8 +9,8 @@ Entry in the **Post-Quantum AI Agents** category of QoreChain's *Build Before Q-
 ## How it stays inside its mandate
 
 ```
- Owner ── PealMandate v1 ──▶ signed: QoreSign hybrid (secp256k1 + ML-DSA-87)
-                             sealed: QoreSeal to the agent's ML-KEM-1024 key
+ Owner ── PealMandate v1 ──▶ signed: QoreSign hybrid (secp256k1 + ML-DSA-87)   } qore-pq-kit
+                             sealed: QoreSeal to the agent's ML-KEM-1024 key  } messaging
                                           │
                                           ▼
  Agent ── open ─▶ verify against the owner's ML-DSA-87 key read on chain (pqcKeyStatus)
@@ -39,10 +39,10 @@ Layers, from the outside in:
 
 | Path | What it does |
 |---|---|
-| `common/mandate.ts` | PealMandate v1: fields, validation, canonical encoding, hash, sign bytes, seal AAD ([format](docs/mandate.md)) |
+| `common/mandate.ts` | PealMandate v1: fields, validation, canonical encoding, hash ([format](docs/mandate.md)) |
 | `common/canonical.ts` | Canonical JSON: one encoding per value, so a signature over bytes is a signature over the value |
-| `owner-cli/mandate.ts` | Owner side: `signMandate` (QoreSign `signMessage`, hybrid) and `sealMandate` (QoreSeal, hybrid ML-KEM-1024 + X25519) |
-| `agent/inbox.ts` | Agent side: `receiveMandate` opens, verifies and accepts or refuses with one of 15 stable codes |
+| `owner-cli/mandate.ts` | Owner side: a mandate as the body of a qore-pq-kit `messaging` instruction, signed (`signInstruction`: QoreSign, secp256k1 + ML-DSA-87) and sealed (`sealInstruction`: QoreSeal, ML-KEM-1024 + X25519) |
+| `agent/inbox.ts` | Agent side: `receiveMandate` opens (`openInstruction`), verifies (`verifyInstruction` against the owner's key from the chain) and the Bidder's own checks; accepts or refuses with one of 15 stable codes |
 | `agent/keysource.ts` | Reads the owner's ML-DSA-87 key from the `pqcKeyStatus` precompile by `eth_call`; fails closed |
 | `agent/store.ts` | Highest accepted nonce per owner (refuses replays and rollbacks) |
 | `agent/policy.ts`, `agent/auction.ts` | The deterministic clamp and the auction's price arithmetic |
@@ -62,7 +62,7 @@ Layers, from the outside in:
 | `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
 | `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 176 offline tests and 3 live planner checks (Vitest and fast-check); see below |
+| `test/` | 182 offline tests and 3 live planner checks (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -104,7 +104,7 @@ The planner uses Claude only when `ANTHROPIC_API_KEY` is set in the environment.
 
 ## Tests
 
-- **Mandate verification** (`test/inbox.test.ts`, 29 cases): a valid mandate, and each refusal: forged signature, the owner's public key with someone else's signature, an ML-DSA key other than the one on chain, a right classical key with a wrong ML-DSA signature, tampered limits, tampered instructions, expired, not yet valid, replayed, rolled back, other chain, other EVM chain id, a signature made for another chain, an envelope sealed under another chain, sealed to another agent, another agent's mandate forwarded, an envelope bound to another owner, an owner the agent does not serve, classical-only signature, no key on chain, RPC failure, non-canonical text, duplicate keys, inconsistent limits, an extra field, a wrong receipt key, and malformed envelopes and payloads.
+- **Mandate verification** (`test/inbox.test.ts`, 35 cases): a valid mandate, and each refusal: forged signature, the owner's public key with someone else's signature, an ML-DSA key other than the one on chain, a right classical key with a wrong ML-DSA signature, tampered limits, tampered instructions, expired, not yet valid, replayed, rolled back, other chain, other EVM chain id, a signature made for another chain, an envelope sealed under another chain, sealed to another agent, another agent's mandate forwarded, an envelope bound to another owner, an owner the agent does not serve, classical-only signature, no key on chain, RPC failure, non-canonical text, duplicate keys, inconsistent limits, an extra field, a wrong receipt key, malformed envelopes and payloads, an envelope bound to another purpose, an instruction signed in the future, and instruction fields that disagree with the mandate inside.
 - **On-chain key reading** (`test/keysource.test.ts`): selector, the 2,752-byte reply, and failing closed on no key, another algorithm, unproven possession, wrong length, empty or malformed data and RPC errors.
 - **Policy** (`test/policy.test.ts`): every clamp and skip rule, junk proposals, and a fuzz property over 2,000 random planner outputs and ledgers that no bid ever leaves the mandate.
 - **Planner** (`test/planner.test.ts`): the request (model, effort, structured output, fallbacks), the untrusted-text framing, and fixtures including **prompt-injection** cases: an "ignore your mandate" override that the model resists, one it obeys toward another auction (skipped, never redirected), one it obeys on size and tick (clamped), and a fake owner tag. Refusal, prose, schema-violating and truncated answers fall back to the rules.
@@ -150,7 +150,7 @@ The design comes from the author's own earlier project, **Peal** (private, start
 ## Credits
 
 - [@qorechain/qoresign](https://www.npmjs.com/package/@qorechain/qoresign) 0.2.0 (hybrid message signatures) and [@qorechain/qoreseal](https://www.npmjs.com/package/@qorechain/qoreseal) 0.1.0 (ML-KEM-1024 envelopes), QoreChain's kits.
-- [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit) `v0.4.0`, by git tag: network settings, hybrid-signed broadcasts, EVM transactions, secret files, fUSD conversion, the `threshold` module (sealing a bid to a committee, checking members) and the `smart-account` module (linking the agent's key, signing its calls, relaying).
+- [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit) `v0.4.0`, by git tag: network settings, hybrid-signed broadcasts, EVM transactions, secret files, fUSD conversion, the `messaging` module (the mandate's signature and envelope), the `threshold` module (sealing a bid to a committee, checking members) and the `smart-account` module (linking the agent's key, signing its calls, relaying).
 - [@qorechain/sdk](https://www.npmjs.com/package/@qorechain/sdk) and [@qorechain/evm](https://www.npmjs.com/package/@qorechain/evm) 0.14.0: windows, linked keys, spending rules, `MsgExecuteEVM`.
 - [@anthropic-ai/sdk](https://www.npmjs.com/package/@anthropic-ai/sdk) for Claude; [viem](https://viem.sh) for the EVM calls; [@noble/hashes](https://github.com/paulmillr/noble-hashes) and [@scure/bip39](https://github.com/paulmillr/scure-bip39); [Vitest](https://vitest.dev) and [fast-check](https://fast-check.dev) for tests.
 
