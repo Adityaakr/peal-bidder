@@ -4,7 +4,7 @@ import { deriveUnifiedAccount, generateMnemonic, qorechainTypes, ruleBoundsEvery
 const { MsgRegisterAuthenticator, MsgRevokeAuthenticator, MsgUpdateSpendingRules } = qorechainTypes.abstractaccount;
 import { toFunctionSelector, type Hex } from "viem";
 import {
-  PROVISIONAL_COMMIT_BID_SIGNATURE,
+  COMMIT_BID_SIGNATURE,
   linkAgentMsgs,
   revokeAgentMsg,
   selectorOf,
@@ -16,7 +16,7 @@ import { AUCTION_A, AUCTION_B, newAccount, newAgent, sampleMandate } from "./hel
 
 const owner = newAccount();
 const agentKeys = newAgent();
-const SELECTOR = selectorOf(PROVISIONAL_COMMIT_BID_SIGNATURE);
+const SELECTOR = selectorOf(COMMIT_BID_SIGNATURE);
 
 function decode<T>(m: { typeUrl: string; value: unknown }, codec: { fromPartial(x: unknown): T }): T {
   return codec.fromPartial(m.value);
@@ -44,7 +44,7 @@ describe("spending rule for a mandate", () => {
   });
 
   it("accepts a selector or a signature", () => {
-    expect(SELECTOR).toBe(toFunctionSelector(PROVISIONAL_COMMIT_BID_SIGNATURE));
+    expect(SELECTOR).toBe(toFunctionSelector(COMMIT_BID_SIGNATURE));
     expect(selectorOf("0xABCDEF01")).toBe("0xabcdef01");
   });
 });

@@ -71,3 +71,21 @@ From the approved design (decisions of 15 to 16 November 2026):
 - The browser automation bridge was not reachable, so the dashboard was checked through its HTML rather than with a screenshot.
 
 **Human decisions in this step**: the owner (through the orchestrator) decided not to transfer QOR from the drill account before drill day, so the live runs wait for faucet funds; and the agent must not claim the faucet with scripted accounts.
+
+### 2026-11-16: sealed bids for Peal Sealed Auction, chain reader, fallback executor (third pull request)
+
+**Brief**: next slice after the second pull request was merged.
+
+**What the worker agent did**
+
+- Read Peal Sealed Auction's merged contracts and client (read-only, at `f502616`) and wrote out by hand the small interface the agent needs (`agent/auction-abi.ts`), instead of importing the other entry's repository, which the rules keep separate. The shared cryptography comes from qore-pq-kit `v0.2.0`'s `threshold` module, which both entries use by tag.
+- Found that the `commitBid` signature it had assumed from the design (`uint64 seq`) differs from the contract (`uint32 seq`), and corrected the spending rule's allowed call to the contract's.
+- Wrote the bid encoder (committee verification, an escrow cross-check with the contract, sealing, calldata), a chain auction reader that keeps issuer text only when it matches the auction's metadata hash, and the fallback executor for design R1.
+- Built a fake chain for the tests with real member keys and cards, so the kit's own `verifyMember`, `sealSlot`, `openShare` and `openSlot` run unmodified; and a local end-to-end test with the chain-side spending rule *simulated* (labelled as such: the real rule is spike S2's subject).
+- Added two privacy points to the threat model that the earlier slices had missed: the agent's own receipts show its bids in clear before the close, and with Claude enabled the planner's input goes to Anthropic's API.
+
+**What went wrong and was fixed**
+
+- A first draft of the end-to-end test file was left with placeholder blocks; the agent noticed before running it and rewrote the file.
+
+**Human decisions in this step**: none new; the live runs stay parked on faucet funds, as decided.

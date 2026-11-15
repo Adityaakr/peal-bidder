@@ -3,7 +3,9 @@
  *
  *   pnpm agent init                         make the agent's QoreSeal and receipt keys; write public.json
  *   pnpm agent receive                      open and check every sealed mandate in the inbox
- *   pnpm agent run --auctions <file.json>   plan and (dry-run) bid; --once for one round
+ *   pnpm agent run [--executor dry-run|smart-account|window] [--auctions <file.json> | --factory 0x...]
+ *                                           plan and bid; --rounds N --interval S. Auctions come from the
+ *                                           chain unless --auctions names a file. The default executor is dry-run.
  *   pnpm agent status                       the active mandate and what it has committed
  *   pnpm agent receipts                     verify the receipts log
  *
@@ -13,11 +15,13 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { hexToBytes } from "@noble/hashes/utils.js";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, http, type Address } from "viem";
 import { int, out, parseFlags, str } from "../common/cli.ts";
 import { agentPaths, bidderHome } from "../common/home.ts";
 import { network } from "../common/network.ts";
-import { BidderAgent, DryRunExecutor } from "./agent.ts";
+import { BidderAgent, DryRunExecutor, type BidExecutor } from "./agent.ts";
+import { ChainAuctionReader } from "./chain-auction.ts";
+import { makeExecutor, type ExecutorKind } from "./executors.ts";
 import { FileAuctionReader } from "./auction-file.ts";
 import { initAgentKeys, loadAgentIdentity } from "./identity.ts";
 import { ChainPqKeySource, StaticPqKeySource, type PqKeySource } from "./keysource.ts";
@@ -35,7 +39,10 @@ function keySource(paths: AgentPaths, offline: boolean): PqKeySource {
   return new StaticPqKeySource().set(o.address, hexToBytes(o.pqPublicKey));
 }
 
-export function buildAgent(paths: AgentPaths, opts: { offline?: boolean; auctions?: string; planners?: Planner[] } = {}) {
+export function buildAgent(
+  paths: AgentPaths,
+  opts: { offline?: boolean; auctions?: string; factory?: string; planners?: Planner[]; executor?: BidExecutor } = {},
+) {
   const id = loadAgentIdentity(paths);
   const now = () => Math.floor(Date.now() / 1000);
   const sink = new FileSink(paths.receipts);
@@ -43,10 +50,14 @@ export function buildAgent(paths: AgentPaths, opts: { offline?: boolean; auction
   if (!check.ok) throw new Error(`the receipts log is broken at line ${check.line}: ${check.error}`);
   const claude = claudePlannerFromEnv();
   const planners = opts.planners ?? (claude ? [claude, new RulePlanner()] : [new RulePlanner()]);
-  const executor = new DryRunExecutor();
+  const executor = opts.executor ?? new DryRunExecutor();
+  const net = network();
+  const reader = opts.auctions
+    ? new FileAuctionReader(opts.auctions)
+    : new ChainAuctionReader(createPublicClient({ transport: http(net.evmRpc) }), opts.factory ? { factory: opts.factory as Address } : {});
   const agent = new BidderAgent({
     inbox: {
-      network: network(),
+      network: net,
       identity: { address: id.account.cosmos, owner: id.account.owner, sealKeys: id.sealKeys, receiptKeyHash: id.receiptKeyHash },
       keys: keySource(paths, opts.offline === true),
       store: new FileMandateStore(paths.nonces, now),
@@ -55,9 +66,9 @@ export function buildAgent(paths: AgentPaths, opts: { offline?: boolean; auction
     receipts: new ReceiptLog(sink, id.receiptKey, id.account.cosmos, now),
     history: check.receipts,
     planners,
-    reader: opts.auctions ? new FileAuctionReader(opts.auctions) : { read: async () => [] },
+    reader,
     executor,
-    countDryRuns: true,
+    countDryRuns: executor instanceof DryRunExecutor,
   });
   return { agent, id, executor, planners };
 }
@@ -88,8 +99,19 @@ export async function run(): Promise<void> {
       return;
     }
     case "run": {
-      const auctions = str(flags, "auctions");
-      const { agent, planners } = buildAgent(paths, { auctions });
+      const kind = str(flags, "executor", "dry-run") as ExecutorKind;
+      if (!["dry-run", "smart-account", "window"].includes(kind)) throw new Error("--executor must be dry-run, smart-account or window");
+      const executor = await makeExecutor(kind, {
+        id: loadAgentIdentity(paths),
+        net: network(),
+        ...(typeof flags["relayer-url"] === "string" ? { relayerUrl: flags["relayer-url"] } : {}),
+        ...(typeof flags.gas === "string" ? { gasLimit: BigInt(int(flags, "gas")) } : {}),
+      });
+      const { agent, planners } = buildAgent(paths, {
+        ...(typeof flags.auctions === "string" ? { auctions: flags.auctions } : {}),
+        ...(typeof flags.factory === "string" ? { factory: flags.factory } : {}),
+        executor,
+      });
       const rounds = flags.once === true ? 1 : int(flags, "rounds", 1);
       const interval = int(flags, "interval", 30);
       const log = [];
@@ -107,7 +129,7 @@ export async function run(): Promise<void> {
         );
         if (i + 1 < rounds) await new Promise((r) => setTimeout(r, interval * 1000));
       }
-      out({ executor: "dry-run (bids are not sent until the auction is deployed)", planners: planners.map((p) => p.name), log });
+      out({ executor: kind, auctions: typeof flags.auctions === "string" ? flags.auctions : "chain", planners: planners.map((p) => p.name), log });
       return;
     }
     case "status": {
