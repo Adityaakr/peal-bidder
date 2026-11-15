@@ -114,7 +114,27 @@ export class ReceiptLog {
     this.prev = check.head;
   }
 
+  /**
+   * Continue from the log's last line, so that several `ReceiptLog`s on one
+   * file in one process (the agent's decisions and its claims, say) extend one
+   * chain instead of forking it. The log was verified in full when opened; the
+   * last line is checked again here, so a line written by anything else stops
+   * the agent rather than being chained onto.
+   */
+  private resync(): void {
+    const lines = this.sink.read();
+    if (lines.length === this.seq) return;
+    if (lines.length < this.seq) throw new Error("the receipts log was truncated under the agent");
+    const last = JSON.parse(lines[lines.length - 1] as string) as Receipt;
+    if (last.body.seq !== lines.length - 1 || !pqVerify(this.key.publicKey, receiptSignBytes(last.body), hexToBytes(last.sig))) {
+      throw new Error("the receipts log changed under the agent and its last line does not verify");
+    }
+    this.seq = lines.length;
+    this.prev = receiptHash(last.body);
+  }
+
   append(kind: ReceiptKind, mandateHash: string | null, data: CanonicalValue): Receipt {
+    this.resync();
     const body: ReceiptBody = {
       v: 1,
       seq: this.seq,
