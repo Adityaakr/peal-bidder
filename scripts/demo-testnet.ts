@@ -21,7 +21,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fetchAuthenticators, fetchKemKey, fetchPqcStatus, fetchSpendingRules } from "@qorechain/sdk";
-import { broadcast } from "qore-pq-kit";
+import { relay as kitRelay } from "qore-pq-kit/smart-account";
 import { createPublicClient, encodeFunctionData, erc20Abi, http, type Address, type Hex } from "viem";
 import { accountAddress, loadAccount, qoreSignKeys } from "../common/accounts.ts";
 import { main, out, parseFlags, str, units, int } from "../common/cli.ts";
@@ -37,7 +37,7 @@ import { FileSink, ReceiptLog, verifyReceipts } from "../agent/receipts.ts";
 import { FileMandateStore } from "../agent/store.ts";
 import { SealedBidEncoder } from "../agent/bid-encoder.ts";
 import { SmartAccountExecutor } from "../agent/smart-account-executor.ts";
-import { fetchAuthNonce, resolveEvmAuthDigestVersion, type BroadcastResult } from "@qorechain/sdk";
+import { fetchAuthNonce, resolveEvmAuthDigestVersion } from "@qorechain/sdk";
 import { MANDATE_SEAL_PURPOSE, buildMandate, encodeMandate, mandateSealAad, mandateSignData } from "../common/mandate.ts";
 import { sealMandate, signMandate } from "../owner-cli/mandate.ts";
 import { chainRecipient, readCard } from "../owner-cli/recipient.ts";
@@ -154,7 +154,7 @@ async function run(): Promise<void> {
   const recipient = await chainRecipient({ rest: net.rest, chainId: net.chainId, info, card: readCard(ag.card) });
   const { envelope, mandateHash } = sealMandate({ signed: signMandate(mandate, qoreSignKeys(ownerAcc)), mandate, recipient });
 
-  const send: Broadcaster = async (msgs) => (await broadcast(relayerFull, msgs)) as unknown as BroadcastResult;
+  const send: Broadcaster = (msgs) => kitRelay(relayerFull, msgs);
   const makeRelayer = (targets: string[]) => new Relayer({ relayer: relayerAcc.cosmos, account: owner.cosmos, targets, maxGas: 3_000_000n }, send);
   const encoder = new SealedBidEncoder({ client, rest: net.rest, evmChainId: net.evmChainId, sealChainId: net.chainId, bidder: owner.evm as Address });
   const executorWith = (targets: string[]) => {

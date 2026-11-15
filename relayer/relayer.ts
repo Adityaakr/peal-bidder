@@ -10,9 +10,13 @@
  * with a sane gas limit. It cannot change the message: the signature covers
  * the target, value, data, nonce and (digest v2) gas limit.
  *
- * NOT YET PROVEN END TO END: see spike S2 in docs/spikes.md.
+ * Broadcasting and decoding are qore-pq-kit's `relay` (smart-account module),
+ * proven by spike S2: `success = false` in a code-0 transaction is final (the
+ * key's nonce is spent), and a replay is refused at delivery while the relayer
+ * still pays its fee. What stays here is the relayer's own policy.
  */
-import { decodeAuthenticatorExecutions, qorechainTypes, type BroadcastResult, type EncodeObject } from "@qorechain/sdk";
+import { qorechainTypes, type EncodeObject } from "@qorechain/sdk";
+import type { RelayOutcome as KitRelayOutcome } from "qore-pq-kit/smart-account";
 
 export const EXECUTE_EVM_TYPE_URL = "/qorechain.abstractaccount.v1.MsgExecuteEVM";
 const { MsgExecuteEVM } = qorechainTypes.abstractaccount;
@@ -37,8 +41,8 @@ export interface RelayOutcome {
   gasUsed?: string;
 }
 
-/** Sends one hybrid-signed transaction from the relayer's account (qore-pq-kit `broadcast` in production). */
-export type Broadcaster = (msgs: EncodeObject[]) => Promise<Pick<BroadcastResult, "transactionHash" | "code" | "rawLog" | "msgResponses" | "events">>;
+/** Broadcasts from the relayer's account and decodes the executions: qore-pq-kit `relay` in production. */
+export type Broadcaster = (msgs: EncodeObject[]) => Promise<KitRelayOutcome>;
 
 export function decodeExecuteEvm(m: EncodeObject): ExecuteEvm {
   if (m.typeUrl !== EXECUTE_EVM_TYPE_URL) throw new Error(`not a MsgExecuteEVM: ${m.typeUrl}`);
@@ -75,29 +79,27 @@ export class Relayer {
   async relay(m: EncodeObject): Promise<RelayOutcome> {
     const refusal = checkRelayable(m, this.policy);
     if (refusal) return { status: "refused", reason: `relayer: ${refusal}` };
-    let res: Awaited<ReturnType<Broadcaster>>;
+    let res: KitRelayOutcome;
     try {
       res = await this.send([m]);
     } catch (err) {
-      const message = (err as Error).message;
-      // A transaction refused with a code did not execute; anything else (timeouts, a dropped
-      // connection after broadcast) may have.
-      if (CODE_FAILURE.test(message)) return { status: "refused", reason: message };
-      return { status: "unknown", reason: message };
+      return { status: "unknown", reason: (err as Error).message };
     }
-    if (res.code !== 0) return { status: "refused", txHash: res.transactionHash, reason: res.rawLog ?? `code ${res.code}` };
-    const [exec] = decodeAuthenticatorExecutions(res, [m]);
-    if (!exec) return { status: "unknown", txHash: res.transactionHash, reason: "no execution result in the transaction" };
+    if (!res.delivered) {
+      // Refused with a code (a replay, a nonce mismatch): nothing executed. Anything else
+      // (a timeout, a dropped connection after broadcast) may have.
+      const message = res.error ?? "not delivered";
+      return CODE_FAILURE.test(message)
+        ? { status: "refused", ...(res.txHash ? { txHash: res.txHash } : {}), reason: message }
+        : { status: "unknown", ...(res.txHash ? { txHash: res.txHash } : {}), reason: message };
+    }
+    const [exec] = res.results;
+    if (!exec) return { status: "unknown", txHash: res.txHash, reason: "no execution result in the transaction" };
     if (!exec.success) {
       // Final: the chain consumed the key's nonce, so this signature can never be relayed again.
-      return {
-        status: "refused",
-        txHash: res.transactionHash,
-        reason: exec.reason || exec.vmError || "success=false",
-        gasUsed: exec.gasUsed.toString(),
-      };
+      return { status: "refused", txHash: res.txHash, reason: exec.reason || exec.vmError || "success=false", gasUsed: exec.gasUsed.toString() };
     }
-    return { status: "landed", txHash: res.transactionHash, gasUsed: exec.gasUsed.toString() };
+    return { status: "landed", txHash: res.txHash, gasUsed: exec.gasUsed.toString() };
   }
 }
 

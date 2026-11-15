@@ -9,8 +9,7 @@
  * Binds 127.0.0.1 only. The relayer's key stays in ~/.qore-peal-bidder/owner/relayer.env.
  */
 import { createServer, type IncomingMessage } from "node:http";
-import { broadcast } from "qore-pq-kit";
-import type { BroadcastResult } from "@qorechain/sdk";
+import { relay as kitRelay } from "qore-pq-kit/smart-account";
 import { accountAddress, loadAccount } from "../common/accounts.ts";
 import { int, list, main, out, parseFlags } from "../common/cli.ts";
 import { bidderHome, ownerPaths } from "../common/home.ts";
@@ -35,7 +34,7 @@ async function run(): Promise<void> {
   const relayerAcc = await loadAccount(op.relayer);
   const owner = accountAddress(op.owner);
   const targets = list(flags, "targets").map((t) => t.toLowerCase());
-  const send: Broadcaster = async (msgs) => (await broadcast(relayerAcc, msgs)) as unknown as BroadcastResult;
+  const send: Broadcaster = (msgs) => kitRelay(relayerAcc, msgs);
   const relayer = new Relayer({ relayer: relayerAcc.cosmos, account: owner.cosmos, targets, maxGas: 3_000_000n }, send);
   const port = int(flags, "port", 8787);
 

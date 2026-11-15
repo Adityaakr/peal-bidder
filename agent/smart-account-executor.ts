@@ -5,14 +5,13 @@
  * signature, the key's expiry and the owner's spending rule (fUSD only, per-bid
  * and daily limits, only `commitBid` on the mandate's auctions).
  *
- * NOT YET PROVEN END TO END: see spike S2 in docs/spikes.md. The bid's
- * calldata (sealing it to the auction committee and encoding `commitBid`)
- * comes from a `BidEncoder`, written once Peal Sealed Auction's ABI and
- * committee are deployed; until then the agent runs with the dry-run executor.
+ * Proven by spike S2 (qore-pq-kit docs/spikes.md); signing comes from the
+ * kit's `smart-account` module. The bid's calldata comes from a `BidEncoder`
+ * (`bid-encoder.ts`).
  */
-import { buildMetaMaskExecuteEvm, type EncodeObject, type Eip1193Provider, type EvmAuthDigestVersion } from "@qorechain/sdk";
-import { hexToBytes, type Hex } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import type { EncodeObject, EvmAuthDigestVersion } from "@qorechain/sdk";
+import { buildAgentCall } from "qore-pq-kit/smart-account";
+import type { Hex } from "viem";
 import type { PealMandateV1 } from "../common/mandate.ts";
 import { encodeExecuteEvmWire, type RelayOutcome } from "../relayer/relayer.ts";
 import type { BidDecision, BidExecutor, SubmitResult } from "./agent.ts";
@@ -52,20 +51,6 @@ export class HttpRelayClient implements RelayClient {
   }
 }
 
-/** A minimal EIP-1193 provider over a local key: only `personal_sign`, only for its own address. */
-export function localSigner(privateKey: Hex): Eip1193Provider & { address: Hex } {
-  const account = privateKeyToAccount(privateKey);
-  return {
-    address: account.address,
-    async request({ method, params }) {
-      if (method !== "personal_sign") throw new Error(`unsupported method ${method}`);
-      const [data, address] = params as [Hex, string];
-      if (address.toLowerCase() !== account.address.toLowerCase()) throw new Error("personal_sign for another address");
-      return account.signMessage({ message: { raw: hexToBytes(data) } });
-    },
-  };
-}
-
 export interface SmartAccountExecutorDeps {
   privateKey: Hex;
   chainId: string;
@@ -82,10 +67,7 @@ export interface SmartAccountExecutorDeps {
 }
 
 export class SmartAccountExecutor implements BidExecutor, CallSender {
-  private readonly signer: ReturnType<typeof localSigner>;
-
   constructor(private readonly deps: SmartAccountExecutorDeps) {
-    this.signer = localSigner(deps.privateKey);
   }
 
   /** Build and sign the message; exposed for tests and for inspection before sending. */
@@ -95,17 +77,18 @@ export class SmartAccountExecutor implements BidExecutor, CallSender {
     return this.sign(bid);
   }
 
-  /** Sign one call with the linked key. */
+  /** Sign one call with the linked key (qore-pq-kit `buildAgentCall`: EIP-191 over the chain's EVM auth digest). */
   async sign(bid: EncodedBid): Promise<EncodeObject> {
-    return buildMetaMaskExecuteEvm({
-      provider: this.signer,
-      address: this.signer.address,
-      relayer: this.deps.relayer,
+    return buildAgentCall({
+      // The nonce and digest version are passed in, so the kit never needs the REST endpoint here.
+      rest: "",
       chainId: this.deps.chainId,
-      account: this.deps.owner,
+      owner: this.deps.owner,
+      relayer: this.deps.relayer,
+      agentPrivateKey: this.deps.privateKey,
       to: bid.to,
-      value: "0",
-      data: hexToBytes(bid.data),
+      data: bid.data,
+      value: 0n,
       gasLimit: bid.gasLimit,
       nonce: await this.deps.authNonce(),
       digestVersion: await this.deps.digestVersion(),

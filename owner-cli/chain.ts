@@ -24,7 +24,7 @@ import {
   type EncodeObject,
   type UnifiedAccount,
 } from "@qorechain/sdk";
-import { balances, broadcast, network, publicClient, sendEvm } from "qore-pq-kit";
+import { NATIVE_FEE, balances, broadcast, convertCoinMsg, festRegistry, network, publicClient, sendEvm } from "qore-pq-kit";
 import { encodeFunctionData, erc20Abi, hexToBytes, type Hex } from "viem";
 import { qoreSignKeys } from "../common/accounts.ts";
 import type { AgentPublicInfo } from "../agent/identity.ts";
@@ -143,6 +143,16 @@ export async function approveQuote(acc: UnifiedAccount, token: string, spender: 
 export async function transferQuote(owner: UnifiedAccount, token: string, to: string, amount: bigint): Promise<TxOutcome[]> {
   const data = encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [to as Hex, amount] });
   return tokenCallInWindow(owner, token, data, `transfer ${amount} to ${to}`);
+}
+
+/**
+ * Turn the owner's fUSD bank coins (how the faucet pays them, spike S5) into the
+ * ERC-20 the auction and the spending rule see, credited to `receiver0x`
+ * (the owner's own 0x address by default). qore-pq-kit `convertCoinMsg`.
+ */
+export async function convertQuote(owner: UnifiedAccount, denom: string, amount: bigint, receiver0x: string = owner.evm): Promise<TxOutcome> {
+  const res = await broadcast(owner, [convertCoinMsg(owner.cosmos, denom, amount, receiver0x)], "hybrid", NATIVE_FEE, festRegistry());
+  return { txHash: res.transactionHash, note: `convert ${amount} ${denom} to ${receiver0x}` };
 }
 
 /** Send owner-signed native messages (link, rules, revoke) in one hybrid transaction. */

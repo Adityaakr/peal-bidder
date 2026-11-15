@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { deriveUnifiedAccount, evmAuthSignBytes, evmAuthSignBytesV2, executeEvmMsg, generateMnemonic, qorechainTypes, type EncodeObject } from "@qorechain/sdk";
 import { hexToBytes, recoverMessageAddress, type Hex } from "viem";
 import { Relayer, checkRelayable, decodeExecuteEvm, decodeExecuteEvmWire, encodeExecuteEvmWire, type Broadcaster, type RelayOutcome, type RelayPolicy } from "../relayer/relayer.ts";
-import { SmartAccountExecutor, localSigner, type BidEncoder } from "../agent/smart-account-executor.ts";
+import { SmartAccountExecutor, type BidEncoder } from "../agent/smart-account-executor.ts";
+import { kitOutcome } from "./relay-outcome.ts";
 import { TESTNET_CHAIN_ID } from "../common/network.ts";
 import { AUCTION_A, newAccount, newAgent, sampleMandate } from "./helpers.ts";
 import type { BidDecision } from "../agent/agent.ts";
@@ -45,7 +46,7 @@ function executor(over: { relay?: (m: EncodeObject) => Promise<RelayOutcome>; di
   return { ex, sent };
 }
 
-function delivered(success: boolean, extra: { reason?: string } = {}): Awaited<ReturnType<Broadcaster>> {
+function delivered(success: boolean, extra: { reason?: string } = {}) {
   return {
     transactionHash: "TXHASH",
     code: 0,
@@ -124,11 +125,6 @@ describe("agent signing", () => {
     expect(await ex.submit(DECISION, sampleMandate(owner, newAgent()))).toMatchObject({ status: "refused" });
   });
 
-  it("the local signer signs only for its own address", async () => {
-    const s = localSigner(agentAccount.privateKey as Hex);
-    await expect(s.request({ method: "eth_sendTransaction", params: [] })).rejects.toThrow();
-    await expect(s.request({ method: "personal_sign", params: ["0x00", owner.hex] })).rejects.toThrow();
-  });
 });
 
 describe("relayer", () => {
@@ -160,34 +156,31 @@ describe("relayer", () => {
   });
 
   it("reports a landed execution", async () => {
-    const r = new Relayer(policy, async () => delivered(true));
+    const r = new Relayer(policy, async (msgs) => kitOutcome(delivered(true), msgs));
     expect(await r.relay(await signed())).toEqual({ status: "landed", txHash: "TXHASH", gasUsed: "123456" });
   });
 
   it("treats success=false in a code-0 transaction as a final refusal, with the chain's reason", async () => {
-    const r = new Relayer(policy, async () => delivered(false, { reason: "spending limit exceeded" }));
+    const r = new Relayer(policy, async (msgs) => kitOutcome(delivered(false, { reason: "spending limit exceeded" }), msgs));
     expect(await r.relay(await signed())).toMatchObject({ status: "refused", txHash: "TXHASH", reason: "spending limit exceeded" });
   });
 
   it("treats a transaction refused with a code as not executed", async () => {
-    const r = new Relayer(policy, async () => {
-      throw new Error("transaction ABC failed with code 11: nonce mismatch");
-    });
+    // A replay is refused at delivery (spike S2): the kit reports it as not delivered, with the code.
+    const r = new Relayer(policy, async () => ({ txHash: "ABC", delivered: false, results: [], error: "transaction ABC failed with code 11: authenticator replay" }));
     expect(await r.relay(await signed())).toMatchObject({ status: "refused" });
   });
 
   it("treats a lost connection as unknown (the bid may have executed)", async () => {
-    const r = new Relayer(policy, async () => {
-      throw new Error("socket hang up");
-    });
+    const r = new Relayer(policy, async () => ({ txHash: "", delivered: false, results: [], error: "socket hang up" }));
     expect(await r.relay(await signed())).toMatchObject({ status: "unknown" });
   });
 
   it("does not broadcast what it refuses", async () => {
     let calls = 0;
-    const r = new Relayer(policy, async () => {
+    const r = new Relayer(policy, async (msgs) => {
       calls++;
-      return delivered(true);
+      return kitOutcome(delivered(true), msgs);
     });
     expect(await r.relay(await signed({ to: "0x3333333333333333333333333333333333333333" }))).toMatchObject({ status: "refused" });
     expect(calls).toBe(0);

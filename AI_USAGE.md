@@ -106,3 +106,17 @@ From the approved design (decisions of 15 to 16 November 2026):
 **Not tested**: the demo script's scenes need funded accounts, spike S2 and a deployed auction; only `--check` has run. The pieces it composes are tested on their own.
 
 **Human decisions in this step**: none new.
+
+### 2026-11-16: the smart-account path on qore-pq-kit v0.4.0 (fifth pull request)
+
+**Brief**: the orchestrator relayed that spike S2 passed in qore-pq-kit ([qore-pq-kit#7](https://github.com/Adityaakr/qore-pq-kit/pull/7)): use the smart-account path, not the fallback, and the kit's `v0.4.0` tag.
+
+**What the worker agent did**
+
+- Read the kit's S2 report and its `smart-account` module, and found that the Bidder's earlier design matched what S2 proved (key linked by its 20-byte address with an EIP-191 proof, v2 digest, no window on the owner). It then removed its own copies of the transport: the link proof, link and revoke messages, call signing and relay now come from the kit. Only the rule derived from a mandate (Peal Bidder's policy) stays here.
+- Took two further findings from the kit's spikes: the fourth word of `pqcKeyStatus` is "possession proven" (as the key reader assumed), and the faucet pays fUSD as bank coins, so it added `pnpm owner convert` (the kit's `convertCoinMsg`).
+- Removed the "unproven" warnings, marked design R1's fallback retired (kept for comparison), and recorded what S2 did not exercise: the ERC-20 (fUSD) limits and the key's expiry.
+
+**Noticed, not done here**: the kit also gained a `messaging` module written for Peal Bidder's mandates. Moving the mandate channel onto it changes the mandate's wire format, so it is the next slice rather than part of this one.
+
+**Human decisions in this step**: use the smart-account path and the `v0.4.0` tag (relayed by the orchestrator).
