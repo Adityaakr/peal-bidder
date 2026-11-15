@@ -2,33 +2,34 @@
  * The owner's smart-account limits on the agent's linked key: what the chain
  * itself enforces, whatever the agent does.
  *
- * NOT YET PROVEN END TO END. A linked secp256k1 key executing an EVM call
- * (`MsgExecuteEVM`) under a spending rule has no recorded run on the testnet;
- * spike S2 in qore-pq-kit settles it (docs/spikes.md). These builders follow
- * the SDK 0.14.0 documentation and are checked offline with the SDK's own
- * validators. When qore-pq-kit ships its `smart-account` module, the transport
- * moves there; the rule derived from the mandate stays here, because it is
- * Peal Bidder's policy.
+ * Proven on qorechain-diana by spike S2 (qore-pq-kit, docs/spikes.md): a call
+ * above the per-execution limit or to a call not on the allowlist comes back
+ * `success = false` and spends the key's nonce; a replay is refused at
+ * delivery; the owner needs no EVM window. The link, revoke, signing and relay
+ * mechanics come from qore-pq-kit's `smart-account` module; what stays here is
+ * Peal Bidder's policy: the rule derived from a mandate.
+ *
+ * Still open from S2: ERC-20 `denomLimits` (the fUSD limits below) and the
+ * linked key's expiry have not been exercised on chain yet (docs/spikes.md).
  */
+import { checkValuePermissionRules, msg, qorechainTypes, validateSpendingRules, type EncodeObject } from "@qorechain/sdk";
 import {
-  checkValuePermissionRules,
-  linkAuthenticatorMsgs,
-  msg,
-  revokeAuthenticatorMsg,
-  signAuthenticatorLinkEip191,
-  qorechainTypes,
-  validateSpendingRules,
-  type EncodeObject,
-} from "@qorechain/sdk";
-import { hexToBytes, toFunctionSelector, type Hex } from "viem";
+  agentLinkProof,
+  evmCallEntry,
+  linkAgentMsgs as kitLinkAgentMsgs,
+  revokeAgentMsg as kitRevokeAgentMsg,
+  type AgentRule,
+} from "qore-pq-kit/smart-account";
+import { toFunctionSelector, type Address, type Hex } from "viem";
 import type { PealMandateV1 } from "../common/mandate.ts";
 import { CLAIM_SIGNATURE, COMMIT_BID_SIGNATURE } from "../agent/auction-abi.ts";
 
 export type SpendingRule = ReturnType<typeof qorechainTypes.abstractaccount.SpendingRule.fromPartial>;
+export type { AgentRule };
 
 /** The rule id this repository writes. */
 export const RULE_ID = "peal-bidder";
-/** The one permission the agent's key gets: EVM calls. No `send`, no `deploy`, no `all`. */
+/** The one permission the agent's key gets (the kit's link sets exactly this): EVM calls. */
 export const AGENT_PERMISSIONS = ["evm"] as const;
 export const LINK_LABEL = "peal-bidder-agent";
 
@@ -40,6 +41,19 @@ export function selectorOf(signatureOrSelector: string): Hex {
   return toFunctionSelector(signatureOrSelector);
 }
 
+/** The rule in the chain's (string) form, as `MsgUpdateSpendingRules` carries it. */
+export function toChainRule(r: AgentRule): SpendingRule {
+  return {
+    id: r.id,
+    enabled: true,
+    perTxLimit: r.perTxLimit.toString(),
+    dailyLimit: r.dailyLimit.toString(),
+    allowedDenoms: r.allowedDenoms ?? [],
+    allowedEvmCalls: r.allowedEvmCalls.map(evmCallEntry),
+    denomLimits: (r.denomLimits ?? []).map((d) => ({ denom: d.denom, perTxLimit: d.perTxLimit.toString(), dailyLimit: d.dailyLimit.toString() })),
+  };
+}
+
 /**
  * The spending rule for a mandate:
  * - the key may move only the quote token (fUSD), as `erc20/<contract>`;
@@ -47,68 +61,67 @@ export function selectorOf(signatureOrSelector: string): Hex {
  * - with call data, only `commitBid` and `claim` on the mandate's auctions
  *   (`claim` is permissionless and pays the bidder, so it moves nothing out).
  *
- * From chain v3.2.2 the EVM lane counts the measured outflow of a call,
- * including allowance changes of a listed ERC-20.
+ * Rule-level limits are zero: the fUSD denom limit is the only one, and fUSD
+ * the only denom the key may move. From chain v3.2.2 the EVM lane counts the
+ * measured outflow of a call, including allowance changes of a listed ERC-20.
  */
-export function spendingRuleFor(mandate: PealMandateV1, commitBidSelector: Hex, opts: { dailyLimit?: bigint } = {}): SpendingRule {
+export function spendingRuleFor(mandate: PealMandateV1, commitBidSelector: Hex, opts: { dailyLimit?: bigint } = {}): AgentRule {
   const denom = `erc20/${mandate.quoteToken}`;
   const daily = opts.dailyLimit ?? BigInt(mandate.budget);
   if (daily <= 0n) throw new Error("the daily limit must be positive");
-  const rule: SpendingRule = {
+  const claim = toFunctionSelector(CLAIM_SIGNATURE);
+  const rule: AgentRule = {
     id: RULE_ID,
-    // Rule-level limits are zero: the denom limit below is the only one, and fUSD the only denom.
-    dailyLimit: "0",
-    perTxLimit: "0",
+    perTxLimit: 0n,
+    dailyLimit: 0n,
     allowedDenoms: [denom],
-    enabled: true,
-    allowedEvmCalls: mandate.auctions.flatMap((a) => [`${a}/${commitBidSelector}`, `${a}/${toFunctionSelector(CLAIM_SIGNATURE)}`]),
-    denomLimits: [{ denom, perTxLimit: mandate.maxPerBid, dailyLimit: daily.toString() }],
+    denomLimits: [{ denom, perTxLimit: BigInt(mandate.maxPerBid), dailyLimit: daily }],
+    allowedEvmCalls: mandate.auctions.flatMap((a) => [
+      { target: a as Address, selector: commitBidSelector },
+      { target: a as Address, selector: claim },
+    ]),
   };
-  validateSpendingRules([rule]);
-  checkValuePermissionRules([...AGENT_PERMISSIONS], [rule]);
+  const chainForm = toChainRule(rule);
+  validateSpendingRules([chainForm]);
+  checkValuePermissionRules([...AGENT_PERMISSIONS], [chainForm]);
   return rule;
 }
 
 /**
- * `[MsgUpdateSpendingRules, MsgRegisterAuthenticator]`, for ONE transaction
- * signed by the owner. The agent's key is linked by its 20-byte EVM address
- * (scheme secp256k1, EIP-191 possession proof), the form the `MsgExecuteEVM`
- * digest uses.
- *
- * `MsgUpdateSpendingRules` replaces the account's rules wholesale, and the
- * first enabled rule bounds every linked key that has no rule of its own: pass
- * every rule the owner's account should keep in `otherRules`.
+ * `[MsgUpdateSpendingRules, MsgRegisterAuthenticator]` for ONE owner-signed
+ * transaction (qore-pq-kit `linkAgentMsgs`): the agent's key is linked by its
+ * 20-byte address with an EIP-191 proof, permission `evm` only. The rules
+ * REPLACE every rule on the owner's account; pass any to keep in `otherRules`.
  */
 export function linkAgentMsgs(args: {
   chainId: string;
   owner: string;
   /** The agent account's classical key; the owner holds it as part of the agent account's mnemonic. */
   agentPrivateKey: Hex;
-  rule: SpendingRule;
-  otherRules?: SpendingRule[];
+  rule: AgentRule;
+  otherRules?: AgentRule[];
   expiryUnix: number;
 }): EncodeObject[] {
-  const proof = signAuthenticatorLinkEip191({ chainId: args.chainId, account: args.owner, privateKey: args.agentPrivateKey });
-  return linkAuthenticatorMsgs({
-    owner: args.owner,
+  const proof = agentLinkProof({ chainId: args.chainId, owner: args.owner, agentPrivateKey: args.agentPrivateKey });
+  return kitLinkAgentMsgs({
     chainId: args.chainId,
-    scheme: proof.scheme,
-    pubkey: proof.pubkey,
-    possessionProof: proof.possessionProof,
-    permissions: [...AGENT_PERMISSIONS],
-    expiryUnix: args.expiryUnix,
+    owner: args.owner,
+    proof,
+    rule: args.rule,
+    expiryUnix: BigInt(args.expiryUnix),
     label: LINK_LABEL,
-    spendingRules: [args.rule, ...(args.otherRules ?? [])],
+    ...(args.otherRules ? { otherRules: args.otherRules } : {}),
   });
 }
 
 /** Replace the account's rules (to tighten or loosen the agent's limits without relinking). */
-export function setRulesMsg(owner: string, rules: SpendingRule[]): EncodeObject {
-  validateSpendingRules(rules);
-  return msg.abstractaccount.updateSpendingRules({ owner, accountAddress: owner, rules });
+export function setRulesMsg(owner: string, rules: AgentRule[]): EncodeObject {
+  const chainForm = rules.map(toChainRule);
+  validateSpendingRules(chainForm);
+  return msg.abstractaccount.updateSpendingRules({ owner, accountAddress: owner, rules: chainForm });
 }
 
-/** Disable the agent's key at once. */
+/** Disable the agent's key at once (qore-pq-kit `revokeAgentMsg`). */
 export function revokeAgentMsg(owner: string, agentEvmAddress: string): EncodeObject {
-  return revokeAuthenticatorMsg({ owner, scheme: "secp256k1", pubkey: hexToBytes(agentEvmAddress.toLowerCase() as Hex) });
+  return kitRevokeAgentMsg(owner, agentEvmAddress as Address);
 }

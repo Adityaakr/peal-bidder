@@ -7,11 +7,12 @@
  *   pnpm owner register-agent        publish the agent's ML-KEM key and sign its recipient card (after `pnpm agent init`)
  *   pnpm owner mandate ...           write, sign and seal a mandate to the agent
  *   pnpm owner window open|close     open or close the agent's scoped EVM window
+ *   pnpm owner convert --amount 500  turn the owner's fUSD bank coins (as the faucet pays them) into ERC-20 fUSD
  *   pnpm owner approve ...           approve fUSD to an auction (from the owner; --from agent on the fallback path)
  *   pnpm owner fund-agent ...        fallback path: move fUSD from the owner to the agent's account
- *   pnpm owner link ...              link the agent's key to the owner's account under a spending rule   (unproven: S2)
- *   pnpm owner rules ...             replace the spending rule                                             (unproven: S2)
- *   pnpm owner revoke                revoke the agent's key at once                                        (unproven: S2)
+ *   pnpm owner link ...              link the agent's key to the owner's account under a spending rule
+ *   pnpm owner rules ...             replace the spending rule
+ *   pnpm owner revoke                revoke the agent's key at once
  *
  * Keys stay in ~/.qore-peal-bidder/owner (QORE_BIDDER_HOME). Nothing is printed but addresses and hashes.
  */
@@ -23,13 +24,14 @@ import { accountAddress, createAccount, exportAgentAccount, loadAccount, qoreSig
 import { int, list, out, parseFlags, str, units, type Flags } from "../common/cli.ts";
 import { agentPaths, bidderHome, ownerPaths } from "../common/home.ts";
 import { buildMandate, type PealMandateV1 } from "../common/mandate.ts";
-import { FUSD, FUSD_DECIMALS, network } from "../common/network.ts";
+import { FUSD, FUSD_DECIMALS, FUSD_DENOM, network } from "../common/network.ts";
 import { readAgentPublicInfo, type AgentPublicInfo } from "../agent/identity.ts";
 import { writeOwnerPublic } from "../agent/cli.ts";
 import {
   accountStatus,
   approveQuote,
   closeWindow,
+  convertQuote,
   transferQuote,
   openWindow,
   registerAgentKem,
@@ -48,7 +50,8 @@ import {
   spendingRuleFor,
 } from "./smart-account.ts";
 
-const UNPROVEN = "smart-account path not yet proven on the testnet (spike S2); see docs/spikes.md";
+/** S2 proved native-QOR limits and the call allowlist; the fUSD (ERC-20) limits are not yet exercised on chain. */
+const NOTE = "fUSD (ERC-20) denom limits are not yet exercised on the testnet; see docs/spikes.md";
 
 /** Build a mandate from command-line flags. Amounts are whole fUSD; times are hours from `now`. */
 export function mandateFromFlags(flags: Flags, ctx: { owner: string; info: AgentPublicInfo; now: number }): PealMandateV1 {
@@ -183,6 +186,11 @@ export async function run(): Promise<void> {
       out(await approveQuote(acc, str(flags, "token", FUSD), str(flags, "spender"), units(flags, "amount", FUSD_DECIMALS)));
       return;
     }
+    case "convert": {
+      const owner = await loadAccount(op.owner);
+      out(await convertQuote(owner, str(flags, "denom", FUSD_DENOM), units(flags, "amount", FUSD_DECIMALS)));
+      return;
+    }
     case "fund-agent": {
       const owner = await loadAccount(op.owner);
       out(await transferQuote(owner, str(flags, "token", FUSD), accountAddress(op.agentAccount).evm, units(flags, "amount", FUSD_DECIMALS)));
@@ -209,19 +217,19 @@ export async function run(): Promise<void> {
         msgs = [setRulesMsg(owner.cosmos, [rule])];
       }
       if (flags["dry-run"] === true) {
-        out({ warning: UNPROVEN, rule, messages: msgs.map((m) => m.typeUrl) });
+        out({ note: NOTE, rule, messages: msgs.map((m) => m.typeUrl) });
         return;
       }
-      out({ warning: UNPROVEN, rule, tx: await sendOwnerMsgs(owner, msgs) });
+      out({ note: NOTE, rule, tx: await sendOwnerMsgs(owner, msgs) });
       return;
     }
     case "revoke": {
       const owner = await loadAccount(op.owner);
-      out({ warning: UNPROVEN, tx: await sendOwnerMsgs(owner, [revokeAgentMsg(owner.cosmos, accountAddress(op.agentAccount).evm)]) });
+      out({ tx: await sendOwnerMsgs(owner, [revokeAgentMsg(owner.cosmos, accountAddress(op.agentAccount).evm)]) });
       return;
     }
     default:
-      throw new Error("usage: pnpm owner init|status|register|register-agent|mandate|window|approve|fund-agent|link|rules|revoke");
+      throw new Error("usage: pnpm owner init|status|register|register-agent|mandate|window|convert|approve|fund-agent|link|rules|revoke");
   }
 }
 

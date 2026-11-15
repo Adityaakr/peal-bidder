@@ -27,7 +27,7 @@
     "@qorechain/qoresign": "0.2.0",
     "@qorechain/sdk": "0.14.0",
     "@scure/bip39": "2.4.0",
-    "qore-pq-kit": "github:Adityaakr/qore-pq-kit#v0.2.0",
+    "qore-pq-kit": "github:Adityaakr/qore-pq-kit#v0.4.0",
     "viem": "2.57.20"
   },
   "devDependencies": {

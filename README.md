@@ -4,7 +4,7 @@ An AI agent that bids in Peal sealed auctions for its owner, inside limits that 
 
 Entry in the **Post-Quantum AI Agents** category of QoreChain's *Build Before Q-Day* developer fest. It is one of three linked entries: [Peal Sealed Auction](https://github.com/Adityaakr/peal-sealed-auction) is the venue, [Peal Tender](https://github.com/Adityaakr/peal-tender) is the treasury that runs buybacks through it, and this repository is the participant. All three use [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit).
 
-> **Status (16 November 2026):** built and tested offline: the mandate channel, the policy clamp, the planner (Claude Opus 5.5 with a rule-based fallback), the signed receipts log, the owner CLI, the relayer, the dashboard, and the bid itself: sealed to the auction's committee with qore-pq-kit's `threshold` module and encoded for Peal Sealed Auction's `commitBid`, then sent either through the owner's smart account or (the fallback) from the agent's own account inside an owner-opened window. The chain-side commands are written but **not yet run on the testnet**: the accounts are waiting for faucet funds, the smart-account path waits for spike S2 ([docs/spikes.md](docs/spikes.md)), and the auction is not deployed yet. The default executor is dry-run.
+> **Status (16 November 2026):** built and tested offline: the mandate channel, the policy clamp, the planner (Claude Opus 5.5 with a rule-based fallback), the signed receipts log, the owner CLI, the relayer, the dashboard, and the bid itself: sealed to the auction's committee with qore-pq-kit's `threshold` module and encoded for Peal Sealed Auction's `commitBid`, then sent either through the owner's smart account or (the fallback) from the agent's own account inside an owner-opened window. The smart-account path is proven on the testnet by spike S2 in qore-pq-kit, and its mechanics now come from qore-pq-kit `v0.4.0`. This repository's own chain-side commands have **not yet run on the testnet**: the accounts are waiting for faucet funds and the auction is not deployed yet. The fUSD (ERC-20) spending limits are the one part S2 did not exercise ([docs/spikes.md](docs/spikes.md)). The default executor is dry-run.
 
 ## How it stays inside its mandate
 
@@ -23,14 +23,14 @@ Entry in the **Post-Quantum AI Agents** category of QoreChain's *Build Before Q-
           │        and remaining budget, bid count, validity window
           ▼
           submit ─▶ the chain enforces again: spending rule on the owner's smart account,
-          │         scoped EVM window, fUSD allowance        (written; unproven until S2)
+          │         fUSD allowance                           (proven by spike S2)
           ▼
           receipt ─▶ hash-chained, ML-DSA-87-signed log of every decision
 ```
 
 Layers, from the outside in:
 
-1. **The chain** (written, not yet run on the testnet): a spending rule on the owner's account that bounds the agent's linked key (fUSD only, per-transaction and daily limits, only `commitBid` on the auction, an expiry); a scoped EVM window with target, transaction-count, value and duration limits; an fUSD allowance equal to the budget.
+1. **The chain** (proven by spike S2; this repository's run waits for funds): a spending rule on the owner's account that bounds the agent's linked key (fUSD only, per-transaction and daily limits, only `commitBid` and `claim` on the mandate's auctions, an expiry) and an fUSD allowance equal to the budget. The owner's account needs no EVM window (S2). The agent's own account works only inside scoped windows the owner opens, for the permissionless calls.
 2. **The key split**: the agent holds only its classical key and its decryption key. The owner holds the agent account's ML-DSA-87 key, so only the owner can open the agent's windows, link its key or change its rules. The agent cannot raise its own limits.
 3. **The mandate**: authenticated instructions. The agent refuses anything not signed by its owner's on-chain key.
 4. **The policy**: whatever the planner says, the bid fits the mandate.
@@ -62,7 +62,7 @@ Layers, from the outside in:
 | `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
 | `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 177 offline tests and 3 live planner checks (Vitest and fast-check); see below |
+| `test/` | 176 offline tests and 3 live planner checks (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -85,8 +85,9 @@ pnpm agent init                       # the agent makes its QoreSeal and receipt
 # fund the three accounts from the faucet, then:
 pnpm owner register                   # ML-DSA-87 keys on chain
 pnpm owner register-agent             # the agent's ML-KEM key on chain, and its signed recipient card
+pnpm owner convert --amount 500       # the faucet pays fUSD as bank coins; the auction needs the ERC-20
 pnpm owner approve --spender 0x<auction> --amount 500
-pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40   # spending rule + linked key (S2)
+pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40   # spending rule + linked key
 pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 \
   --instructions "Take part in the buyback at a fair price." --deliver
 pnpm agent receive                    # verified against the owner's key on chain
@@ -137,7 +138,7 @@ Testnet accounts (throwaway, created 16 November 2026, keys outside the reposito
 2. ~~Owner CLI, relayer, dashboard~~ (PR 2), written and tested offline; first live run once the accounts are funded.
 3. ~~Bid sealing and encoding for Peal Sealed Auction; chain reader; fallback window executor~~ (PR 3), tested offline against a fake chain.
 4. ~~Claims after settlement; the testnet demo script~~ (PR 4); the demo's `--check` runs read-only today.
-5. The smart-account path depends on spike S2 in qore-pq-kit (a linked key executing an EVM call under a spending rule has no recorded end-to-end run). If it fails, bids go from the agent's own account inside owner-opened scoped windows, with the allowance and the auction's caps ([docs/spikes.md](docs/spikes.md)).
+5. ~~The smart-account path: spike S2~~ settled in qore-pq-kit; the transport now comes from its `v0.4.0` `smart-account` module (PR 5). Design R1's fallback is retired.
 6. `pnpm demo:testnet` against Peal Sealed Auction's deployed contracts (expected 22 to 23 November): one landed bid and each refusal, with transaction hashes.
 
 ## Prior work
@@ -149,7 +150,7 @@ The design comes from the author's own earlier project, **Peal** (private, start
 ## Credits
 
 - [@qorechain/qoresign](https://www.npmjs.com/package/@qorechain/qoresign) 0.2.0 (hybrid message signatures) and [@qorechain/qoreseal](https://www.npmjs.com/package/@qorechain/qoreseal) 0.1.0 (ML-KEM-1024 envelopes), QoreChain's kits.
-- [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit) `v0.2.0`, by git tag: network settings, hybrid-signed broadcasts, EVM transactions, secret files, and the `threshold` module (sealing a bid to a committee, checking members).
+- [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit) `v0.4.0`, by git tag: network settings, hybrid-signed broadcasts, EVM transactions, secret files, fUSD conversion, the `threshold` module (sealing a bid to a committee, checking members) and the `smart-account` module (linking the agent's key, signing its calls, relaying).
 - [@qorechain/sdk](https://www.npmjs.com/package/@qorechain/sdk) and [@qorechain/evm](https://www.npmjs.com/package/@qorechain/evm) 0.14.0: windows, linked keys, spending rules, `MsgExecuteEVM`.
 - [@anthropic-ai/sdk](https://www.npmjs.com/package/@anthropic-ai/sdk) for Claude; [viem](https://viem.sh) for the EVM calls; [@noble/hashes](https://github.com/paulmillr/noble-hashes) and [@scure/bip39](https://github.com/paulmillr/scure-bip39); [Vitest](https://vitest.dev) and [fast-check](https://fast-check.dev) for tests.
 

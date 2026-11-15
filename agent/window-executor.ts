@@ -1,8 +1,9 @@
 /**
- * The fallback path (design section 9, R1): the agent sends `commitBid` from
+ * The fallback path (design section 9, R1), RETIRED by spike S2 (the
+ * smart-account path works) and kept only for comparison: the agent sends `commitBid` from
  * its OWN account, inside an EVM window the owner opened for it.
  *
- * Used if spike S2 shows the smart-account path does not work. The chain
+ * The chain
  * limits are then: the window (targets: the auction only; transaction count;
  * value; duration), the fUSD the owner put on the agent's account and the
  * allowance the owner set from it, and the auction's own caps. The agent can

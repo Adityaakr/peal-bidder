@@ -4,8 +4,9 @@
  * - `dry-run` (default): nothing is sent; the decision is recorded and counted.
  * - `smart-account`: `MsgExecuteEVM` signed with the agent's linked key, sent
  *   through the relayer; the call runs from the owner's account under the
- *   owner's spending rule. Unproven until spike S2.
- * - `window`: the fallback (design R1); the agent's own account sends
+ *   owner's spending rule. Proven by spike S2; the default for live runs.
+ * - `window`: the fallback from design R1, retired by S2 and kept for
+ *   comparison; the agent's own account sends
  *   `commitBid` inside a window the owner opened.
  */
 import { parseAddress } from "@qorechain/qoresign";

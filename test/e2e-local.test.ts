@@ -2,7 +2,7 @@
  * The whole bid path, offline: a sealed mandate in, the auction read from a
  * fake chain, planner, policy, a sealed `commitBid`, the agent's linked-key
  * signature, the relayer, and a SIMULATED chain-side check standing in for
- * QoreChain's spending rule (the real one is what spike S2 tests). The
+ * QoreChain's spending rule (spike S2 ran the real one on the testnet). The
  * simulation checks what the design says the chain checks: the linked key's
  * signature over the v2 digest, the allowed call, and fUSD outflow per
  * execution and per day.
@@ -23,6 +23,8 @@ import { TESTNET_CHAIN_ID, TESTNET_EVM_CHAIN_ID } from "../common/network.ts";
 import { sealMandate, signMandate } from "../owner-cli/mandate.ts";
 import { spendingRuleFor } from "../owner-cli/smart-account.ts";
 import { Relayer, decodeExecuteEvm, type Broadcaster } from "../relayer/relayer.ts";
+import { evmCallEntry } from "qore-pq-kit/smart-account";
+import { kitOutcome } from "./relay-outcome.ts";
 import { E18, FACTORY, fakeChain } from "./fake-chain.ts";
 import { AUCTION_A, newAccount, newAgent, sampleMandate } from "./helpers.ts";
 import { deriveUnifiedAccount, generateMnemonic } from "@qorechain/sdk";
@@ -42,7 +44,8 @@ async function setup() {
   // SIMULATED chain: verify the linked key and apply the spending rule.
   let spentToday = 0n;
   const executed: Hex[] = [];
-  const simulatedChain: Broadcaster = async ([m]) => {
+  const simulatedChain: Broadcaster = async (msgs) => kitOutcome(await simulate(msgs[0] as EncodeObject), msgs);
+  const simulate = async (m: EncodeObject) => {
     const x = decodeExecuteEvm(m as EncodeObject);
     const digest = evmAuthSignBytesV2({
       chainId: TESTNET_CHAIN_ID,
@@ -63,10 +66,10 @@ async function setup() {
     });
     if (signer.toLowerCase() !== agentAccount.evm.toLowerCase()) return fail("authenticator signature invalid");
     const data = `0x${Buffer.from(x.data).toString("hex")}` as Hex;
-    if (!rule.allowedEvmCalls.includes(`${x.to.toLowerCase()}/${data.slice(0, 10)}`)) return fail("call not allowed by spending rule");
+    if (!rule.allowedEvmCalls.map(evmCallEntry).includes(`${x.to.toLowerCase()}/${data.slice(0, 10)}`)) return fail("authenticator not permitted for this action");
     const { args } = decodeFunctionData({ abi: sealedAuctionAbi, data });
     const outflow = (args[5] as bigint) + chain.cfg.bidBond;
-    const limit = rule.denomLimits[0]!;
+    const limit = rule.denomLimits![0]!;
     if (outflow > BigInt(limit.perTxLimit)) return fail("spending limit exceeded: per execution");
     if (spentToday + outflow > BigInt(limit.dailyLimit)) return fail("spending limit exceeded: daily");
     spentToday += outflow;

@@ -10,6 +10,7 @@ import {
   selectorOf,
   setRulesMsg,
   spendingRuleFor,
+  toChainRule,
 } from "../owner-cli/smart-account.ts";
 import { TESTNET_CHAIN_ID } from "../common/network.ts";
 import { AUCTION_A, AUCTION_B, newAccount, newAgent, sampleMandate } from "./helpers.ts";
@@ -26,7 +27,7 @@ function decode<T>(m: { typeUrl: string; value: unknown }, codec: { fromPartial(
 describe("spending rule for a mandate", () => {
   it("allows only fUSD, only commitBid on the mandate's auctions, within the per-bid and daily limits", () => {
     const m = sampleMandate(owner, agentKeys, { auctions: [AUCTION_A, AUCTION_B] });
-    const rule = spendingRuleFor(m, SELECTOR);
+    const rule = toChainRule(spendingRuleFor(m, SELECTOR));
     const denom = `erc20/${m.quoteToken}`;
     expect(rule).toMatchObject({
       enabled: true,
@@ -41,7 +42,7 @@ describe("spending rule for a mandate", () => {
 
   it("takes a tighter daily limit", () => {
     const rule = spendingRuleFor(sampleMandate(owner, agentKeys), SELECTOR, { dailyLimit: 200_000_000n });
-    expect(rule.denomLimits[0]?.dailyLimit).toBe("200000000");
+    expect(rule.denomLimits?.[0]?.dailyLimit).toBe(200_000_000n);
   });
 
   it("accepts a selector or a signature", () => {
