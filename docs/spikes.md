@@ -104,3 +104,29 @@ Afterwards the owner holds 33 PEAL-T. Its ERC-20 fUSD went from 199 to 366: each
 **Finding: a listed token can be transferred.** A spending rule that lists fUSD in `allowed_denoms` lets the linked key `transfer` or `approve` fUSD with any arguments, whatever `allowed_evm_calls` says. The chain's own refusal text says so, and so does the SDK's `SpendingRule` documentation. The measured outflow still counts against the fUSD limits. So a stolen agent key can move at most 100 fUSD per execution and 300 per day to an address of its choosing. It cannot exceed the limits, and it cannot touch any other token or contract. This is now in the threat model, with the mitigation: keep only the budget as ERC-20 on the owner's account (the rest stays as bank coins, which an EVM call cannot move), and keep the daily limit at the budget. The 1 fUSD went to the demo's own relayer account.
 
 **Spend**: today's fUSD outflow under the rule was 201 of 300 (two bids of 100 and the 1 fUSD transfer), plus the 110 refused. The relayer paid 0.84 QOR for the five relayed executions: 0.18 QOR for each commit, sized at 1.2M gas, and the 0.15 QOR minimum for the others. Setup and the approval cost the owner 0.76 QOR. Two planner calls on OpenRouter cost about $0.02. After the bids the owner held 199 fUSD as ERC-20.
+
+### 2026-11-16 (UTC): can the transfer finding be tightened? No
+
+**Setup:** a second Bidder demo auction, `0xE5fC1b2Fc5dE7EeB39620915bE9C1037467aBe76` (bidding until 11:25 UTC). The owner approved 100 fUSD to it, in three transactions: `A178F12D…EFA0`, `0x2c81bd23…7938`, `E7DD3945…4628`.
+
+**The test:** a temporary rule variant left fUSD out of `allowed_denoms`. It allowed only `uqor` with a 1 uqor cap, and kept the same `commitBid` and `claim` allowlist.
+
+| Step | Result | Transaction |
+|---|---|---|
+| Rule update (first auction) | done | `B368E9C4885D3BC6D25776775DFC6A357AC83AC73B89577103588519CA1BE337` |
+| Plain `fUSD.transfer(relayer, 1 fUSD)` by the agent's key | **refused**: "may call 0x9714… with data only if the rule lists the call … or lists the token" | `A871522250E8F2F98C1C2B15211446253094CCF5009456E04CA165AF3D7D7795` |
+| Rule update (second auction) | done | `F6E81C9666750B387D10F0383179EE926A068377A12D822A8C63AE24ADE50B7A` |
+| A bid (`commitBid`, 100 fUSD, the CLI path: mandate → `agent receive` → `agent run --executor smart-account` → `pnpm relayer`) | **refused**: "the call made a token transfer from the account on 0x9714…63CA, which the linked key's spending rule does not list" | `19A2EF01035BBB40ADE1A265E9CC02148A51A0959F24C067DD579BD23AA54803` |
+
+**Conclusion:** the chain counts the auction's `transferFrom` of the escrow as a transfer from the account. A rule that lets the agent bid must list fUSD, and then also lets it transfer fUSD within the limits. The threat model states the residual bound and the mitigations.
+
+**The daily counter survives rule updates.** After restoring the listed rule with a 100 fUSD daily limit (`BD62AE57…CEB5`), the next bid was refused: "daily limit 100000000 … exceeded: spent 201000000, remaining 0" (`B1E1DAD216E09BA45971523E25C28A28A40C7847C887AAED030D16B091EBA13C`). The 201 fUSD spent earlier that UTC day counted under the rewritten rule. With the daily limit at 400 fUSD (`5A540FD3…2618`), the bid **landed**: Claude chose tick 15, 100 fUSD (`135C6D617F7318B286BE5821F4B96A98FEE7C4AE2AFBD7220DFB13D3A958A968`).
+
+**Claim:** after the auction settled (clearing 1 fUSD, the reserve), the bid won 11.65 PEAL-T. `pnpm agent claim --executor smart-account` claimed it through the relayer service: `93D74F33F6C4F471855B98F892A3307C1FAC6B01FB848EB564E12E0162141341`. The owner received 88.35 fUSD back.
+
+**Totals after both auctions:**
+- **Owner:** 44.65 PEAL-T and 354.35 ERC-20 fUSD (1,000 more as bank coins); 1.66 QOR spent of 115.
+- **Relayer:** 2.13 QOR spent of 10.
+- **Planner:** about $0.06 on OpenRouter in all.
+
+The agent's key stays linked until its 24 h expiry (2026-11-17, about 08:54 UTC), under a rule that allows only `commitBid` and `claim` on this finished auction.

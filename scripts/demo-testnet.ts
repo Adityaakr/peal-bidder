@@ -120,8 +120,9 @@ async function run(): Promise<void> {
       authNonce: async () => (await fetchAuthNonce({ rest: net.rest, address: owner.cosmos, pubkey: id.account.evm })).nonce,
       digestVersion: () => resolveEvmAuthDigestVersion({ rest: net.rest }),
     });
-    const call = { to: target as Hex, data: toFunctionSelector(str(flags, "signature", "auctionCount()")), gasLimit: 200_000n };
-    const results = { auction, scene: "3b: a call to a contract that is not on the allowlist", target, signature: str(flags, "signature", "auctionCount()"), submit: await executor.sendCall(call), at: new Date().toISOString() };
+    const data = typeof flags.data === "string" ? (flags.data as Hex) : toFunctionSelector(str(flags, "signature", "auctionCount()"));
+    const call = { to: target as Hex, data, gasLimit: 200_000n };
+    const results = { auction, scene: "3b: a call off the allowlist", target, data, submit: await executor.sendCall(call), at: new Date().toISOString() };
     mkdirSync(op.outbox, { recursive: true, mode: 0o700 });
     const file = join(op.outbox, `demo-offtarget-${Date.now()}.json`);
     writeFileSync(file, `${JSON.stringify(results, null, 2)}\n`);
