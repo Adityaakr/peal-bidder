@@ -32,7 +32,7 @@ import { ChainAuctionReader } from "../agent/chain-auction.ts";
 import { costCeil, priceAt } from "../agent/auction.ts";
 import { loadAgentIdentity, readAgentPublicInfo } from "../agent/identity.ts";
 import { ChainPqKeySource } from "../agent/keysource.ts";
-import { RulePlanner, claudePlannerFromEnv } from "../agent/planner/index.ts";
+import { RulePlanner, defaultPlanners } from "../agent/planner/index.ts";
 import { FileSink, ReceiptLog, verifyReceipts } from "../agent/receipts.ts";
 import { FileMandateStore } from "../agent/store.ts";
 import { SealedBidEncoder } from "../agent/bid-encoder.ts";
@@ -173,7 +173,9 @@ async function run(): Promise<void> {
   const sink = new FileSink(ag.receipts);
   const history = verifyReceipts(sink.read(), id.receiptKey.publicKey);
   if (!history.ok) throw new Error(`receipts log broken at line ${history.line}`);
-  const claude = claudePlannerFromEnv();
+  // The model (OpenRouter or Anthropic, when a key is present) is asked only in scenes 2 and 3d.
+  const planners = defaultPlanners();
+  const model = planners.filter((p) => p.name !== "rules");
   const reader = new ChainAuctionReader(client);
   const agent = new BidderAgent({
     inbox: {
@@ -185,7 +187,7 @@ async function run(): Promise<void> {
     },
     receipts: new ReceiptLog(sink, id.receiptKey, id.account.cosmos, now),
     history: history.receipts,
-    planners: claude ? [claude, new RulePlanner()] : [new RulePlanner()],
+    planners,
     reader,
     executor,
   });
@@ -248,7 +250,7 @@ async function run(): Promise<void> {
     inbox: { network: net, identity: { address: id.account.cosmos, owner: id.account.owner, sealKeys: id.sealKeys, receiptKeyHash: id.receiptKeyHash }, keys: new ChainPqKeySource(client), store: new FileMandateStore(ag.nonces, now), now },
     receipts: new ReceiptLog(sink, id.receiptKey, id.account.cosmos, now),
     history: receiptsSoFar(),
-    planners: claude ? [claude, new RulePlanner(1)] : [new RulePlanner(1)],
+    planners: [...model, new RulePlanner(1)],
     reader: {
       read: async (a) =>
         (await reader.read(a)).map((v) => ({

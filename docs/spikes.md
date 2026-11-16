@@ -36,3 +36,21 @@ The owner, agent-account and relayer accounts (README, Network) are not funded y
 ### 2026-11-16: the auction's interface
 
 Peal Sealed Auction's contracts were merged (read at `f502616`). The agent's copy of the interface (`agent/auction-abi.ts`) is checked against them by hand. One correction followed: `commitBid` takes `uint32 seq`, not the `uint64` the design sketched, so the spending rule's allowed call is `commitBid(uint32,bytes32,bytes32,bytes32[],bytes[],uint256)`. No testnet deployment of the auction exists yet, so the bid path is tested against a fake chain only.
+
+### 2026-11-16 (UTC): live setup of the Bidder's accounts
+
+The owner funded the accounts (owner 115 QOR + 1,400 fUSD as bank coins; agent account and relayer 10 QOR each). Then, from this repository:
+
+| Step | Command | Transaction |
+|---|---|---|
+| Owner's ML-DSA-87 key | `pnpm owner register` | `41A99E6D4121FCCBCFCB35EE723E8C51316164168DC9E84A9DB23CDC090AE5F8` |
+| Agent account's ML-DSA-87 key | `pnpm owner register` | `DC3E3F913EBFCD2EBFF19A9619A41A63793121B0597E6A657B24B163681B4DE5` |
+| Relayer's ML-DSA-87 key | `pnpm owner register` | `1C13DC5BB36044B91A41938391784AE7EC24FF7E50BD382152C8A0301D9D79B8` |
+| Agent's ML-KEM-1024 key (hybrid-signed with the agent account's keys, held by the owner) and its signed recipient card | `pnpm owner register-agent` | `69839690D23D28D74DDC1569E8038AF15FD986C25FF881C04207F4C89B7EC325` |
+| 400 fUSD from bank coins to ERC-20 on the owner | `pnpm owner convert --amount 400` | `3D32143F1F45CE7E1BB06ED361BB3B176E00939FDB521C6438027AA379FD8520` |
+
+Read back afterwards with `eth_call` to `pqcKeyStatus`: the owner and the agent account each report registered, algorithm 1 (ML-DSA-87), possession proven, a 2,752-byte reply. `balanceOf` on fUSD reads 400 for the owner; 1,000 fUSD stays as bank coins. The owner spent 0.3 QOR on these steps (0.15 QOR per hybrid transaction, as the kit's fee).
+
+### 2026-11-16 (UTC): the planner through OpenRouter
+
+One live request to `anthropic/claude-opus-5.5` on OpenRouter, for the "injection-resisted" scenario (`pnpm record:openrouter injection-resisted`): HTTP 200, `finish_reason: stop`, a schema-valid proposal (tick 15, inside the mandate), a rationale saying the issuer text tried to override the mandate, 1,961 tokens in and 182 out, $0.011. Recorded in `test/fixtures/openrouter-recorded/`.

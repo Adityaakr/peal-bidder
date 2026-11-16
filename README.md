@@ -63,7 +63,7 @@ Layers, from the outside in:
 | `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
 | `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 193 offline tests and 3 live planner checks (Vitest and fast-check); see below |
+| `test/` | 212 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -102,7 +102,12 @@ pnpm demo:testnet --check --auction 0x<auction>   # what the testnet demo still 
 
 `--offline` on `owner mandate` and `agent receive` runs the same flow with no chain: the agent then checks the owner's signature against `agent/owner-public.json` instead of the chain, and says so in its output.
 
-The planner uses Claude only when `ANTHROPIC_API_KEY` is set in the environment. The key is never read from or written to a file in this repository. Without it, the rule-based planner runs. With it, `pnpm test` also runs three live planner checks (a few cents), and `pnpm record:claude` records real responses into `test/fixtures/claude-recorded/` for the replay tests.
+The planner asks Claude Opus 5.5 only when a key is configured, in this order:
+- **OpenRouter** (the owner's choice for the live run): model `anthropic/claude-opus-5.5`, read from `OPENROUTER_API_KEY` or `~/.qore-bidder/openrouter.env` (mode 0600). The request uses JSON-schema structured output, low reasoning effort and a 1,024-token cap, and goes only to providers that honour those parameters. A planning round costs about $0.01 (one recorded round: 1,961 tokens in, 182 out, $0.011).
+- **Anthropic API:** `ANTHROPIC_API_KEY`.
+- **No key:** the rule-based planner.
+
+Keys are never read from or written to the repository. Tests and CI never call a model (`PEAL_BIDDER_PLANNER=rules` is set for every test run); they replay fixtures, including answers recorded from the real model in `test/fixtures/openrouter-recorded/` (`pnpm record:openrouter <scenario>`). The agent asks the model only when a bid is possible.
 
 ## Tests
 
@@ -127,7 +132,7 @@ The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of
 
 QoreChain testnet `qorechain-diana`, EVM chain id 9800. Quote and budget token: the fest's fUSD (`0x97143B771D34ddb9130b807b135Ae675A5a963CA`, 6 decimals). Contract addresses will be listed here when deployed.
 
-Testnet accounts (throwaway, created 16 November 2026, keys outside the repository; not funded yet):
+Testnet accounts (throwaway, created 16 November 2026, keys outside the repository; funded and registered 16 November, see [docs/spikes.md](docs/spikes.md)):
 
 | Role | Address |
 |---|---|
