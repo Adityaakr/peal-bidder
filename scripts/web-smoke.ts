@@ -77,8 +77,8 @@ try {
 
   // 1. landing
   await page.goto(`${base}/`);
-  await page.getByRole("heading", { level: 1 }).filter({ hasText: "the chain enforces" }).waitFor();
-  await page.getByText(/receipts verified in your browser/).waitFor({ timeout: 60_000 });
+  await page.getByRole("heading", { level: 1 }).filter({ hasText: "lines it cannot cross" }).waitFor();
+  await page.locator(".con-sig.is-ok").waitFor({ timeout: 60_000 });
   ok("landing page renders; the live receipts verify in the page");
   for (const w of [1280, 768, 390]) {
     await page.setViewportSize({ width: w, height: 900 });

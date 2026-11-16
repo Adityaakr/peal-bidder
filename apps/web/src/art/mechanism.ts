@@ -1,50 +1,56 @@
 /**
- * The mechanism, drawn: how a mandate becomes a bid, and where each kind of
- * attempt is stopped. Hand-made SVG on the accent ramp; green and red only for
- * outcomes. Parts carry `data-step` so the step rail can highlight them.
+ * The mechanism, drawn as a schematic: how a mandate becomes a bid, and the hard
+ * lines where each kind of attempt stops. White boxes with an ink stroke, the
+ * signed path in the accent, refusals as red lines; labels in Plex Mono for names
+ * of calls and keys, Plex Sans for plain words. Parts carry `data-step` so the
+ * step list can highlight them; numbered callouts match the steps.
  *
- * Two layouts: a wide one, and a vertical one for phones (not the wide one
- * scaled down). Every label here also appears in the page text.
+ * Two layouts: a wide one, and a vertical one for phones (not the wide one scaled
+ * down). Every label here also appears in the page text.
  */
 import { s } from "../ui.ts";
 
-const INK = "#111827";
-const MUTED = "#6b7280";
-const LINE = "#e5e7eb";
-const A = { 50: "#eff6ff", 100: "#dbeafe", 200: "#bfdbfe", 300: "#93c5fd", 400: "#60a5fa", 600: "#2563eb", 800: "#1e40af" };
-const GREEN = "#16a34a";
-const RED = "#dc2626";
-const MONO = "ui-monospace, SFMono-Regular, Menlo, monospace";
+const INK = "#0b1320";
+const MUTED = "#667180";
+const PAPER = "#ffffff";
+const ACCENT = "#0369a1";
+const GREEN = "#12804a";
+const RED = "#c9261c";
+const MONO = "IBM Plex Mono, ui-monospace, monospace";
+const SANS = "IBM Plex Sans, system-ui, sans-serif";
 
-function card(x: number, y: number, w: number, hh: number, fill = "#fff", stroke = LINE): SVGElement {
-  return s("rect", { x, y, width: w, height: hh, rx: 12, fill, stroke, "stroke-width": 1 });
+function box(x: number, y: number, w: number, hh: number, stroke = INK, dash?: string): SVGElement {
+  return s("rect", { x, y, width: w, height: hh, rx: 6, fill: PAPER, stroke, "stroke-opacity": stroke === INK ? 0.85 : 1, "stroke-width": 1, ...(dash ? { "stroke-dasharray": dash } : {}) });
 }
 
-function text(x: number, y: number, t: string, o: { size?: number; weight?: number; fill?: string; anchor?: string; mono?: boolean } = {}): SVGElement {
-  return s(
-    "text",
-    {
-      x,
-      y,
-      "font-size": o.size ?? 12,
-      "font-weight": o.weight ?? 400,
-      fill: o.fill ?? INK,
-      "text-anchor": o.anchor ?? "start",
-      ...(o.mono ? { "font-family": MONO } : {}),
-    },
-    t,
-  );
+function t(x: number, y: number, txt: string, o: { size?: number; weight?: number; fill?: string; anchor?: string; mono?: boolean } = {}): SVGElement {
+  return s("text", { x, y, "font-size": o.size ?? 12, "font-weight": o.weight ?? 400, fill: o.fill ?? INK, "text-anchor": o.anchor ?? "start", "font-family": o.mono ? MONO : SANS }, txt);
 }
 
-function check(x: number, y: number, color = GREEN, cls = "draw-check"): SVGElement {
+function line(d: string, color = INK, cls = "", w = 1.25, dash?: string): SVGElement {
+  return s("path", { d, fill: "none", stroke: color, "stroke-width": w, "stroke-linecap": "round", "stroke-linejoin": "round", class: cls, ...(dash ? { "stroke-dasharray": dash } : {}) });
+}
+
+function head(x: number, y: number, dir: "right" | "down" | "left", color = INK): SVGElement {
+  const p = dir === "right" ? `${x},${y} ${x - 7},${y - 3.5} ${x - 7},${y + 3.5}` : dir === "left" ? `${x},${y} ${x + 7},${y - 3.5} ${x + 7},${y + 3.5}` : `${x},${y} ${x - 3.5},${y - 7} ${x + 3.5},${y - 7}`;
+  return s("polygon", { points: p, fill: color });
+}
+
+function callout(x: number, y: number, n: string): SVGElement {
+  const g = s("g", { class: "callout" });
+  g.append(s("circle", { cx: x, cy: y, r: 9, fill: PAPER, stroke: ACCENT, "stroke-width": 1.25 }));
+  g.append(t(x, y + 4, n, { size: 11, weight: 600, fill: ACCENT, anchor: "middle", mono: true }));
+  return g;
+}
+
+function tick(x: number, y: number, ok: boolean, cls = ""): SVGElement {
   const g = s("g", { class: cls });
-  g.append(s("circle", { cx: x, cy: y, r: 8, fill: color === GREEN ? "#f0fdf4" : "#fef2f2", stroke: color, "stroke-width": 1.5 }));
   g.append(
     s("path", {
-      d: color === GREEN ? `M${x - 3.5},${y} l2.5,2.5 l4.5,-5` : `M${x - 3},${y - 3} l6,6 M${x + 3},${y - 3} l-6,6`,
+      d: ok ? `M${x - 4},${y} l3,3 l5.5,-6` : `M${x - 4},${y - 4} l8,8 M${x + 4},${y - 4} l-8,8`,
       fill: "none",
-      stroke: color,
-      "stroke-width": 1.7,
+      stroke: ok ? GREEN : RED,
+      "stroke-width": 1.8,
       "stroke-linecap": "round",
       "stroke-linejoin": "round",
     }),
@@ -52,167 +58,142 @@ function check(x: number, y: number, color = GREEN, cls = "draw-check"): SVGElem
   return g;
 }
 
-function flow(d: string, cls = "flow", color = A[300]): SVGElement {
-  return s("path", { d, fill: "none", stroke: color, "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round", class: cls });
-}
+const LABEL =
+  "How a mandate becomes a bid. 1: the owner signs a mandate with ML-DSA-87 and seals it with ML-KEM-1024. 2: the agent opens it and verifies the signature against the owner's key on chain (pqcKeyStatus); a forged mandate stops there with SIGNATURE_INVALID. 3: Claude Opus 5.5 plans and the policy clamps the plan to the mandate. 4: QoreChain's spending rule checks the call again, 100 fUSD per bid, only commitBid and claim; a 110 fUSD bid stops at that line. The bid reaches Peal Sealed Auction sealed to a 2-of-3 committee. Every step is a receipt signed with ML-DSA-87.";
 
-function arrowHead(x: number, y: number, dir: "right" | "down" | "left", color = A[400]): SVGElement {
-  const d = dir === "right" ? `M${x - 6},${y - 4} L${x},${y} L${x - 6},${y + 4}` : dir === "left" ? `M${x + 6},${y - 4} L${x},${y} L${x + 6},${y + 4}` : `M${x - 4},${y - 6} L${x},${y} L${x + 4},${y - 6}`;
-  return s("path", { d, fill: "none", stroke: color, "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" });
-}
-
-/** A small sealed envelope glyph. */
-function envelope(x: number, y: number, cls?: string): SVGElement {
-  const g = s("g", { class: cls ?? "" });
-  g.append(s("rect", { x: x - 11, y: y - 8, width: 22, height: 16, rx: 3, fill: A[600] }));
-  g.append(s("path", { d: `M${x - 11},${y - 6} L${x},${y + 1} L${x + 11},${y - 6}`, fill: "none", stroke: "#fff", "stroke-width": 1.4, "stroke-linejoin": "round" }));
-  return g;
-}
-
-const LABEL = "How a mandate becomes a bid. The owner signs a mandate with ML-DSA-87 and seals it with ML-KEM-1024. The agent opens it, verifies the signature against the owner's key on chain (pqcKeyStatus), plans with Claude Opus 5.5, and the policy clamps the plan to the mandate. QoreChain's spending rule checks the call again before it reaches Peal Sealed Auction, where the bid is sealed to a 2-of-3 committee. A forged mandate is refused with SIGNATURE_INVALID; a bid over the limit is refused by the chain. Every step is a receipt signed with ML-DSA-87.";
-
-/** The wide drawing (viewBox 640 x 470). */
+/** The wide drawing (viewBox 640 x 460). */
 export function mechanismWide(): SVGSVGElement {
-  const svg = s("svg", { viewBox: "0 0 640 470", role: "img", "aria-label": LABEL, class: "mech mech-wide" }) as SVGSVGElement;
+  const svg = s("svg", { viewBox: "0 0 640 462", role: "img", "aria-label": LABEL, class: "mech mech-wide" }) as SVGSVGElement;
 
-  // ---- step 1: the owner signs and seals
+  // 1: the owner signs and seals; the signed path is the accent
   const g1 = s("g", { "data-step": "1" });
-  g1.append(card(16, 20, 190, 104));
-  g1.append(s("circle", { cx: 44, cy: 50, r: 12, fill: A[50], stroke: A[600], "stroke-width": 1.5 }));
-  g1.append(s("path", { d: "M38,56 a6,6 0 0 1 12,0", fill: "none", stroke: A[600], "stroke-width": 1.5 }));
-  g1.append(s("circle", { cx: 44, cy: 46, r: 3, fill: A[600] }));
-  g1.append(text(64, 46, "Owner", { size: 13, weight: 600 }));
-  g1.append(text(64, 62, "writes a mandate", { size: 11, fill: MUTED }));
-  g1.append(s("rect", { x: 30, y: 78, width: 162, height: 34, rx: 8, fill: A[50], stroke: A[200] }));
-  g1.append(text(40, 92, "signs: ML-DSA-87", { size: 11, fill: A[800], weight: 600 }));
-  g1.append(text(40, 106, "seals: ML-KEM-1024", { size: 11, fill: A[800], weight: 600 }));
-  g1.append(flow("M206,72 C226,72 230,72 252,72", "flow flow-1"));
-  g1.append(arrowHead(258, 72, "right"));
-  g1.append(envelope(231, 72, "travel travel-1"));
+  g1.append(box(16, 24, 176, 92));
+  g1.append(t(32, 50, "Owner", { size: 13, weight: 600 }));
+  g1.append(t(32, 72, "signs  ML-DSA-87", { size: 11, mono: true, fill: MUTED }));
+  g1.append(t(32, 90, "seals  ML-KEM-1024", { size: 11, mono: true, fill: MUTED }));
+  g1.append(callout(192, 24, "1"));
+  g1.append(line("M192,70 L262,70", ACCENT, "draw-path", 1.6));
+  g1.append(head(270, 70, "right", ACCENT));
+  g1.append(t(228, 62, "mandate", { size: 10.5, fill: ACCENT, anchor: "middle", mono: true }));
   svg.append(g1);
 
-  // ---- step 2 and 3: the agent
-  const agent = s("g");
-  agent.append(card(262, 20, 362, 236, "#fff", A[200]));
-  agent.append(text(282, 46, "Agent", { size: 13, weight: 600 }));
-  agent.append(text(330, 46, "holds only its classical key", { size: 11, fill: MUTED }));
-  svg.append(agent);
-  const rows: [string, string, string, string][] = [
-    ["2", "Open", "ML-KEM-1024 + X25519", "sealed to this agent only"],
-    ["2", "Verify", "pqcKeyStatus", "the owner's key, read from the chain"],
-    ["3", "Plan", "Claude Opus 5.5", "auction text is data, never orders"],
-    ["3", "Clamp", "policy", "tick, size and budget fit the mandate"],
+  // the agent: four checks in one box
+  svg.append(box(272, 24, 352, 228));
+  svg.append(t(288, 48, "Agent", { size: 13, weight: 600 }));
+  svg.append(t(608, 48, "holds only its classical key", { size: 11, fill: MUTED, anchor: "end" }));
+  const rows: [string, string, string][] = [
+    ["2", "open", "ML-KEM-1024 + X25519"],
+    ["2", "verify", "pqcKeyStatus"],
+    ["3", "plan", "Claude Opus 5.5"],
+    ["3", "clamp", "policy"],
   ];
-  rows.forEach(([step, title, code, sub], i) => {
-    const y = 60 + i * 47;
+  rows.forEach(([step, verb, code], i) => {
+    const y = 62 + i * 46;
     const g = s("g", { "data-step": step });
-    g.append(s("rect", { x: 278, y, width: 330, height: 38, rx: 8, fill: A[50], stroke: A[100] }));
-    g.append(text(292, y + 16, title, { size: 12, weight: 600 }));
-    g.append(text(346, y + 16, code, { size: 11.5, mono: true, fill: A[800] }));
-    g.append(text(292, y + 31, sub, { size: 10.5, fill: MUTED }));
-    g.append(check(588, y + 19, GREEN, `draw-check draw-check-${i + 1}`));
+    g.append(s("line", { x1: 288, y1: y, x2: 608, y2: y, stroke: INK, "stroke-opacity": 0.12 }));
+    g.append(t(288, y + 28, verb, { size: 12.5, weight: 500 }));
+    g.append(t(352, y + 28, code, { size: 12, mono: true, fill: ACCENT }));
+    g.append(tick(596, y + 23, true, `draw-check draw-check-${i + 1}`));
     svg.append(g);
   });
+  svg.append(callout(624, 108, "2"));
+  svg.append(callout(624, 200, "3"));
 
-  // forged mandate, refused at verify
+  // forged mandate: a hard red stop at verify
   const f = s("g", { "data-step": "2" });
-  f.append(flow("M278,126 C246,126 240,160 206,160", "flow flow-refused", "#fca5a5"));
-  f.append(arrowHead(206, 160, "left", "#f87171"));
-  f.append(card(16, 140, 190, 52, "#fff", "#fecaca"));
-  f.append(check(36, 166, RED, "draw-x"));
-  f.append(text(52, 162, "Forged mandate", { size: 12, weight: 600 }));
-  f.append(text(52, 178, "SIGNATURE_INVALID", { size: 10.5, mono: true, fill: RED }));
+  f.append(line("M272,131 L206,131", RED, "", 1.6));
+  f.append(s("line", { x1: 200, y1: 120, x2: 200, y2: 142, stroke: RED, "stroke-width": 3, "stroke-linecap": "round" }));
+  f.append(t(192, 160, "forged mandate", { size: 11.5, anchor: "end" }));
+  f.append(t(192, 176, "SIGNATURE_INVALID", { size: 11, anchor: "end", mono: true, fill: RED }));
   svg.append(f);
 
-  // ---- step 4: the chain
+  // 4: the chain's spending rule, its top edge the hard line; then the auction
   const g4 = s("g", { "data-step": "4" });
-  g4.append(flow("M443,256 L443,290", "flow flow-2"));
-  g4.append(arrowHead(443, 296, "down"));
-  g4.append(card(262, 300, 230, 118, A[50], A[300]));
-  g4.append(s("path", { d: "M282,318 l8,-3 l8,3 v6 c0,6 -4,10 -8,12 c-4,-2 -8,-6 -8,-12z", fill: "#fff", stroke: A[600], "stroke-width": 1.5, "stroke-linejoin": "round" }));
-  g4.append(text(306, 326, "QoreChain spending rule", { size: 12.5, weight: 600 }));
-  g4.append(text(282, 352, "fUSD only", { size: 11, fill: INK }));
-  g4.append(text(282, 370, "≤ 100 fUSD per bid, 300 a day", { size: 11, fill: INK }));
-  g4.append(text(282, 388, "only commitBid and claim", { size: 11, fill: INK }));
-  g4.append(text(282, 406, "on the mandate's auction", { size: 11, fill: MUTED }));
-  g4.append(flow("M492,358 L522,358", "flow flow-3"));
-  g4.append(arrowHead(528, 358, "right"));
-  g4.append(card(532, 300, 92, 118));
-  g4.append(s("path", { d: "M556,330 h44", stroke: A[600], "stroke-width": 2, "stroke-linecap": "round" }));
-  g4.append(s("rect", { x: 572, y: 324, width: 12, height: 12, rx: 2, fill: A[600], class: "seal-pop" }));
-  g4.append(text(578, 360, "Peal Sealed", { size: 11, weight: 600, anchor: "middle" }));
-  g4.append(text(578, 374, "Auction", { size: 11, weight: 600, anchor: "middle" }));
-  g4.append(text(578, 394, "sealed to a", { size: 10.5, fill: MUTED, anchor: "middle" }));
-  g4.append(text(578, 408, "2-of-3 committee", { size: 10.5, fill: MUTED, anchor: "middle" }));
-  // over the limit, refused by the chain
-  g4.append(flow("M262,372 C236,372 232,330 206,330", "flow flow-refused", "#fca5a5"));
-  g4.append(arrowHead(206, 330, "left", "#f87171"));
-  g4.append(card(16, 304, 190, 52, "#fff", "#fecaca"));
-  g4.append(check(36, 330, RED, "draw-x"));
-  g4.append(text(52, 326, "110 fUSD bid", { size: 12, weight: 600 }));
-  g4.append(text(52, 342, "per-tx limit exceeded", { size: 10.5, mono: true, fill: RED }));
+  g4.append(line("M300,252 L300,310", ACCENT, "draw-path", 1.6));
+  g4.append(head(300, 318, "down", ACCENT));
+  g4.append(box(272, 320, 200, 92));
+  g4.append(s("line", { x1: 272, y1: 320, x2: 472, y2: 320, stroke: RED, "stroke-width": 3 }));
+  g4.append(t(472, 312, "limit: 100 fUSD a bid", { size: 10.5, mono: true, fill: RED, anchor: "end" }));
+  g4.append(t(288, 344, "QoreChain spending rule", { size: 12.5, weight: 600 }));
+  g4.append(t(288, 366, "fUSD only", { size: 11.5, mono: true, fill: MUTED }));
+  g4.append(t(288, 384, "≤ 100 fUSD per bid", { size: 11.5, mono: true, fill: MUTED }));
+  g4.append(t(288, 402, "commitBid, claim", { size: 11.5, mono: true, fill: MUTED }));
+  g4.append(callout(472, 412, "4"));
+  // a 110 fUSD attempt stops at the rule's edge
+  g4.append(line("M206,366 L262,366", RED, "", 1.6));
+  g4.append(s("line", { x1: 268, y1: 354, x2: 268, y2: 378, stroke: RED, "stroke-width": 3, "stroke-linecap": "round" }));
+  g4.append(t(192, 362, "110 fUSD bid", { size: 11.5, anchor: "end" }));
+  g4.append(t(192, 378, "per-tx limit exceeded", { size: 11, anchor: "end", mono: true, fill: RED }));
+  // the bid goes on, sealed, to the auction
+  g4.append(line("M472,366 L494,366", ACCENT, "draw-path", 1.6));
+  g4.append(head(502, 366, "right", ACCENT));
+  g4.append(box(504, 320, 120, 92));
+  g4.append(s("path", { d: "M520,346 h22", stroke: INK, "stroke-width": 2, "stroke-linecap": "round" }));
+  g4.append(s("rect", { x: 526, y: 341, width: 10, height: 10, rx: 1.5, fill: INK, class: "seal-pop" }));
+  g4.append(t(520, 374, "Peal Sealed", { size: 12, weight: 600 }));
+  g4.append(t(520, 390, "Auction", { size: 12, weight: 600 }));
+  g4.append(t(520, 404, "2-of-3 committee", { size: 10.5, fill: MUTED }));
   svg.append(g4);
 
-  // ---- receipts, under everything
+  // receipts: every step
   const r = s("g", { "data-step": "5" });
-  r.append(card(16, 432, 608, 30, "#fff", LINE));
-  for (let i = 0; i < 7; i++) {
-    r.append(s("rect", { x: 30 + i * 22, y: 441, width: 16, height: 12, rx: 3, fill: i < 6 ? A[200] : A[600] }));
-    if (i < 6) r.append(s("path", { d: `M${46 + i * 22},447 h6`, stroke: A[300], "stroke-width": 1.5 }));
-  }
-  r.append(text(196, 451, "Receipts: every step signed with ML-DSA-87 and hash-chained", { size: 11.5, fill: INK }));
+  r.append(s("line", { x1: 16, y1: 432, x2: 624, y2: 432, stroke: INK, "stroke-opacity": 0.12 }));
+  for (let i = 0; i < 10; i++) r.append(s("rect", { x: 16 + i * 14, y: 442, width: 10, height: 10, rx: 1.5, fill: i === 9 ? ACCENT : "none", stroke: ACCENT, "stroke-width": 1 }));
+  r.append(t(162, 451, "every step is a receipt, signed ML-DSA-87 and hash-chained", { size: 11, mono: true, fill: MUTED }));
   svg.append(r);
   return svg;
 }
 
-/** The phone drawing (viewBox 340 x 620): the same parts, stacked. */
+/** The phone drawing (viewBox 340 x 640): the same parts, stacked, larger labels. */
 export function mechanismTall(): SVGSVGElement {
   const svg = s("svg", { viewBox: "0 0 340 640", role: "img", "aria-label": LABEL, class: "mech mech-tall" }) as SVGSVGElement;
   const g1 = s("g", { "data-step": "1" });
-  g1.append(card(10, 10, 320, 62));
-  g1.append(text(26, 34, "Owner", { size: 13, weight: 600 }));
-  g1.append(text(26, 54, "signs ML-DSA-87 · seals ML-KEM-1024", { size: 11, fill: A[800], weight: 600 }));
-  g1.append(flow("M170,72 L170,96", "flow"));
-  g1.append(arrowHead(170, 102, "down"));
+  g1.append(box(10, 12, 320, 70));
+  g1.append(t(26, 38, "Owner", { size: 14, weight: 600 }));
+  g1.append(t(26, 62, "signs ML-DSA-87 · seals ML-KEM-1024", { size: 11.5, mono: true, fill: MUTED }));
+  g1.append(callout(320, 12, "1"));
+  g1.append(line("M170,82 L170,104", ACCENT, "", 1.6));
+  g1.append(head(170, 112, "down", ACCENT));
   svg.append(g1);
+  svg.append(box(10, 114, 320, 230));
+  svg.append(t(26, 140, "Agent", { size: 14, weight: 600 }));
   const rows: [string, string, string][] = [
-    ["2", "Open", "ML-KEM-1024 + X25519"],
-    ["2", "Verify", "pqcKeyStatus"],
-    ["3", "Plan", "Claude Opus 5.5"],
-    ["3", "Clamp", "policy"],
+    ["2", "open", "ML-KEM-1024"],
+    ["2", "verify", "pqcKeyStatus"],
+    ["3", "plan", "Claude Opus 5.5"],
+    ["3", "clamp", "policy"],
   ];
-  svg.append(card(10, 106, 320, 236, "#fff", A[200]));
-  svg.append(text(26, 130, "Agent", { size: 13, weight: 600 }));
-  rows.forEach(([step, title, code], i) => {
-    const y = 144 + i * 47;
+  rows.forEach(([step, verb, code], i) => {
+    const y = 154 + i * 46;
     const g = s("g", { "data-step": step });
-    g.append(s("rect", { x: 22, y, width: 296, height: 38, rx: 8, fill: A[50], stroke: A[100] }));
-    g.append(text(36, y + 24, title, { size: 12, weight: 600 }));
-    g.append(text(92, y + 24, code, { size: 11, mono: true, fill: A[800] }));
-    g.append(check(298, y + 19, GREEN, `draw-check draw-check-${i + 1}`));
+    g.append(s("line", { x1: 26, y1: y, x2: 314, y2: y, stroke: INK, "stroke-opacity": 0.12 }));
+    g.append(t(26, y + 29, verb, { size: 13, weight: 500 }));
+    g.append(t(92, y + 29, code, { size: 12.5, mono: true, fill: ACCENT }));
+    g.append(tick(302, y + 24, true));
     svg.append(g);
   });
+  svg.append(callout(330, 200, "2"));
+  svg.append(callout(330, 292, "3"));
   const f = s("g", { "data-step": "2" });
-  f.append(card(10, 352, 320, 40, "#fff", "#fecaca"));
-  f.append(check(30, 372, RED, "draw-x"));
-  f.append(text(46, 376, "Forged mandate: SIGNATURE_INVALID", { size: 11.5, fill: INK }));
+  f.append(s("line", { x1: 26, y1: 362, x2: 26, y2: 384, stroke: RED, "stroke-width": 3, "stroke-linecap": "round" }));
+  f.append(t(38, 378, "forged mandate: SIGNATURE_INVALID", { size: 12, mono: true, fill: RED }));
   svg.append(f);
   const g4 = s("g", { "data-step": "4" });
-  g4.append(flow("M170,392 L170,414", "flow"));
-  g4.append(arrowHead(170, 420, "down"));
-  g4.append(card(10, 424, 320, 92, A[50], A[300]));
-  g4.append(text(26, 448, "QoreChain spending rule", { size: 12.5, weight: 600 }));
-  g4.append(text(26, 468, "fUSD only · ≤ 100 fUSD per bid", { size: 11 }));
-  g4.append(text(26, 486, "only commitBid and claim", { size: 11 }));
-  g4.append(text(26, 504, "on the mandate's auction", { size: 11, fill: MUTED }));
-  g4.append(card(10, 526, 320, 40, "#fff", "#fecaca"));
-  g4.append(check(30, 546, RED, "draw-x"));
-  g4.append(text(46, 550, "110 fUSD bid: per-tx limit exceeded", { size: 11.5 }));
-  g4.append(card(10, 576, 320, 52));
-  g4.append(s("path", { d: "M26,602 h28", stroke: A[600], "stroke-width": 2, "stroke-linecap": "round" }));
-  g4.append(s("rect", { x: 34, y: 596, width: 12, height: 12, rx: 2, fill: A[600] }));
-  g4.append(text(66, 598, "Peal Sealed Auction", { size: 12, weight: 600 }));
-  g4.append(text(66, 614, "sealed to a 2-of-3 committee", { size: 11, fill: MUTED }));
+  g4.append(line("M170,396 L170,430", ACCENT, "", 1.6));
+  g4.append(head(170, 438, "down", ACCENT));
+  g4.append(s("line", { x1: 10, y1: 420, x2: 330, y2: 420, stroke: RED, "stroke-width": 2 }));
+  g4.append(t(330, 412, "per-bid limit, 100 fUSD", { size: 11, mono: true, fill: RED, anchor: "end" }));
+  g4.append(box(10, 442, 320, 96));
+  g4.append(t(26, 468, "QoreChain spending rule", { size: 14, weight: 600 }));
+  g4.append(t(26, 490, "fUSD only · ≤ 100 fUSD per bid", { size: 12, mono: true, fill: MUTED }));
+  g4.append(t(26, 510, "commitBid, claim", { size: 12, mono: true, fill: MUTED }));
+  g4.append(t(26, 528, "110 fUSD bid: per-tx limit exceeded", { size: 11.5, mono: true, fill: RED }));
+  g4.append(callout(330, 442, "4"));
+  g4.append(line("M170,538 L170,566", ACCENT, "", 1.6));
+  g4.append(head(170, 574, "down", ACCENT));
+  g4.append(box(10, 576, 320, 56));
+  g4.append(t(26, 600, "Peal Sealed Auction", { size: 13.5, weight: 600 }));
+  g4.append(t(26, 620, "sealed to a 2-of-3 committee", { size: 12, fill: MUTED }));
   svg.append(g4);
   return svg;
 }
