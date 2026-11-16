@@ -141,6 +141,19 @@ Testnet accounts (throwaway, created 16 November 2026, keys outside the reposito
 | Agent account | `qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur` (`0xb7Bab569E46Ea2a8082059D28E72CeE263Fa2921`) |
 | Relayer | `qor16tsewlj6jpt4v2esmrhuk7z2xems6e09z5rpzc` (`0xD2E1977E5A9057562b30D8EFCB784a36770D65E5`) |
 
+**The live demo** (16 November 2026, on Peal Sealed Auction's demo auction `0x481FBb2C84582BF7c258c46BF523DEEbDe51E990`; every hash and message is in [docs/spikes.md](docs/spikes.md)):
+
+| Case | Result |
+|---|---|
+| In-mandate bid, planned by Claude Opus 5.5, sealed to the committee, sent through the owner's smart account | landed `27CAB8D0…`, and again in the injection scene `D6F66BD9…` |
+| Over the per-bid limit, with the agent's policy bypassed | refused by the chain's spending rule: `4012FE2E…`, "per-tx limit … exceeded" |
+| A call to a contract off the allowlist | refused by the chain: `8FB22F76…` |
+| A forged mandate | refused by the agent: `SIGNATURE_INVALID` |
+| An injected "ignore your mandate" in the auction text | the model disregarded it and said so; the bid stayed in the mandate |
+| Claims after settlement | both bids won 16.5 PEAL-T; claims `99000161…` and `47FB6C58…` |
+
+Two findings came out of the run: a token listed in the spending rule can also be transferred by the agent's key within the limits (see the threat model), and events of `MsgExecuteEVM` calls do not reach `eth_getLogs`.
+
 ## Roadmap
 
 1. ~~Mandate format, signing and sealing, verification, policy, planner, receipts~~ (PR 1).

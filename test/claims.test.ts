@@ -14,7 +14,8 @@ function client(state: number, bids: { bidder: Address; claimed: boolean; status
     async readContract(a: { functionName: string; args?: readonly unknown[] }) {
       if (a.functionName === "state") return state;
       if (a.functionName === "clearingPrice") return 150_000n;
-      if (a.functionName === "bidCountOf") return bids.length;
+      if (a.functionName === "bidCount") return bids.length;
+      if (a.functionName === "bidCountOf") return bids.filter((b) => b.bidder.toLowerCase() === String(a.args?.[0]).toLowerCase()).length;
       const id = Number(a.args?.[0]);
       const b = bids[id]!;
       if (a.functionName === "getBid") {
@@ -23,7 +24,6 @@ function client(state: number, bids: { bidder: Address; claimed: boolean; status
       if (a.functionName === "allocationOf") return b.allocation;
       throw new Error(a.functionName);
     },
-    // The node filters by the indexed bidder; a lying node is caught by getBid's bidder check.
     async getContractEvents() {
       return bids.map((b, i) => ({ args: { bidId: BigInt(i), bidder: b.bidder } }));
     },
@@ -34,7 +34,7 @@ function client(state: number, bids: { bidder: Address; claimed: boolean; status
 }
 
 describe("claims", () => {
-  it("lists the bidder's own bids with their outcome", async () => {
+  it("lists the bidder's own bids with their outcome, from storage (MsgExecuteEVM calls' events never reach eth_getLogs)", async () => {
     const c = client(4, [
       { bidder: BIDDER, claimed: false, status: 1, allocation: 3n },
       { bidder: OTHER, claimed: false, status: 1, allocation: 9n },

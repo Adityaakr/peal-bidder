@@ -1,9 +1,9 @@
 /**
  * After the auction: find the agent's bids and claim them.
  *
- * The chain is the record: the agent's bids are the auction's `BidCommitted`
- * events for its bidder address (the owner's account on the smart-account
- * path, the agent's own on the fallback path). `claim(bidId)` is
+ * The chain is the record: the agent's bids are the auction's stored bids for
+ * its bidder address (the owner's account on the smart-account path, the
+ * agent's own on the fallback path). `claim(bidId)` is
  * permissionless and always pays the bidder, so claiming moves nothing out of
  * the owner's account; it is sent through the same executor as the bids.
  */
@@ -12,9 +12,8 @@ import type { SubmitResult } from "./agent.ts";
 import { AUCTION_STATE, BID_STATUS, EXCLUSION, sealedAuctionAbi } from "./auction-abi.ts";
 import type { ReceiptLog } from "./receipts.ts";
 import type { CallSender } from "./smart-account-executor.ts";
-import { scanBackwards } from "./logs.ts";
 
-export type ClaimsClient = Pick<PublicClient, "readContract" | "getContractEvents" | "getBlockNumber">;
+export type ClaimsClient = Pick<PublicClient, "readContract">;
 
 export interface OwnBid {
   auction: string;
@@ -42,33 +41,30 @@ export interface AuctionOutcome {
 
 export const CLAIM_GAS = 300_000n;
 
-export async function auctionOutcome(client: ClaimsClient, auction: string, bidder: Address, fromBlock?: bigint): Promise<AuctionOutcome> {
+/**
+ * The bidder's bids, read from storage: `bidCount`, then `getBid(i)` for each
+ * (at most `MAX_BIDS` = 256). Not from `BidCommitted` logs: on qorechain-diana
+ * the events of a call made through `MsgExecuteEVM` do not reach `eth_getLogs`
+ * (found in the live demo, docs/spikes.md), so a smart-account bidder's
+ * commits would be invisible there.
+ */
+export async function auctionOutcome(client: ClaimsClient, auction: string, bidder: Address): Promise<AuctionOutcome> {
   const address = auction as Address;
-  const [stateIndex, clearingPrice, mine] = await Promise.all([
+  const [stateIndex, clearingPrice, count, mine] = await Promise.all([
     client.readContract({ address, abi: sealedAuctionAbi, functionName: "state" }),
     client.readContract({ address, abi: sealedAuctionAbi, functionName: "clearingPrice" }),
+    client.readContract({ address, abi: sealedAuctionAbi, functionName: "bidCount" }),
     client.readContract({ address, abi: sealedAuctionAbi, functionName: "bidCountOf", args: [bidder] }),
   ]);
   const state = AUCTION_STATE[stateIndex] ?? "Created";
-  const logs =
-    Number(mine) === 0
-      ? []
-      : await scanBackwards(
-          client,
-          (from, to) => client.getContractEvents({ address, abi: sealedAuctionAbi, eventName: "BidCommitted", args: { bidder }, fromBlock: from, toBlock: to, strict: true }),
-          { done: (found) => found.length >= Number(mine), ...(fromBlock !== undefined ? { fromBlock } : {}) },
-        );
   const bids: OwnBid[] = [];
-  for (const l of logs) {
-    const bidId = l.args.bidId as bigint;
-    const [b, allocation] = await Promise.all([
-      client.readContract({ address, abi: sealedAuctionAbi, functionName: "getBid", args: [bidId] }),
-      client.readContract({ address, abi: sealedAuctionAbi, functionName: "allocationOf", args: [bidId] }),
-    ]);
+  for (let i = 0n; i < BigInt(count) && bids.length < Number(mine); i++) {
+    const b = await client.readContract({ address, abi: sealedAuctionAbi, functionName: "getBid", args: [i] });
     if (b.bidder.toLowerCase() !== bidder.toLowerCase()) continue;
+    const allocation = await client.readContract({ address, abi: sealedAuctionAbi, functionName: "allocationOf", args: [i] });
     bids.push({
       auction: auction.toLowerCase(),
-      bidId,
+      bidId: i,
       seq: b.seq,
       escrow: b.escrow,
       status: BID_STATUS[b.status] ?? "Pending",
