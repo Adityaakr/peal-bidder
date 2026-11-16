@@ -155,6 +155,16 @@ export async function convertQuote(owner: UnifiedAccount, denom: string, amount:
   return { txHash: res.transactionHash, note: `convert ${amount} ${denom} to ${receiver0x}` };
 }
 
+/** Owner-signed native messages that include a fest message (`MsgConvertCoin`), in one hybrid transaction. */
+export async function sendOwnerFestMsgs(owner: UnifiedAccount, msgs: EncodeObject[]): Promise<TxOutcome> {
+  const res = await broadcast(owner, msgs, "hybrid", NATIVE_FEE, festRegistry());
+  return { txHash: res.transactionHash };
+}
+
+export async function erc20Balance(token: string, holder: string): Promise<bigint> {
+  return publicClient().readContract({ address: token as Hex, abi: erc20Abi, functionName: "balanceOf", args: [holder as Hex] });
+}
+
 /** Send owner-signed native messages (link, rules, revoke) in one hybrid transaction. */
 export async function sendOwnerMsgs(owner: UnifiedAccount, msgs: EncodeObject[]): Promise<TxOutcome> {
   const res = await broadcast(owner, msgs);
