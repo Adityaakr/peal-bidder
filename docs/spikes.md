@@ -141,7 +141,7 @@ Run: `pnpm web:smoke` (headless Chromium against the Vite dev server and its pro
 - **No auction was taking bids** at 15:00 UTC: the factory's four auctions had all closed. The playground rehearses on the last one, read from the chain and treated as open, and says so.
 - **ML-DSA-87 in the page:** checking the live agent's 21 receipts takes about 30 ms in Chromium on a laptop.
 
-### 2026-11-17 (UTC): how the fest site verifies kits and features
+### 2026-11-16 (UTC): how the fest site verifies kits and features
 
 Read-only. The fest's project page marks each ticked kit and network feature VERIFIED or DECLARED ("Verified means found in the repo's dependency files or proven on testnet"). The rule is not published, so it was read off the site: the project pages of all 63 entries on build.qorechain.io, and the dependency files of the repositories whose items show VERIFIED.
 
