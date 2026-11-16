@@ -10,10 +10,15 @@
  * `prev` chains each receipt to the one before it, so a deleted, reordered or
  * edited line is detected. The log proves what the agent says it did; the
  * chain's own records (transaction hashes in the receipts) prove what happened.
+ *
+ * The signatures are ML-DSA-87 (FIPS 204) from qorechain-pqc (`@qorechain/pqc`),
+ * QoreChain's own implementation, the same one QoreSign and the chain's
+ * accounts use: deterministic signing, and a whole log checked with
+ * `batchVerify`.
  */
 import { sha3_256 } from "@noble/hashes/sha3.js";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
-import { pqKeyFromSeed, pqSign, pqVerify } from "@qorechain/qoresign";
+import { batchVerify, mldsa87 } from "@qorechain/pqc";
 import { canonicalize, type CanonicalValue } from "../common/canonical.ts";
 
 export const RECEIPT_SIGN_PREFIX = "peal-bidder/receipt/v1\n";
@@ -25,7 +30,7 @@ export interface ReceiptKey {
 }
 
 export function generateReceiptKey(seed: Uint8Array = globalThis.crypto.getRandomValues(new Uint8Array(32))): ReceiptKey {
-  const k = pqKeyFromSeed(seed);
+  const k = mldsa87.keygen(seed);
   return { publicKey: k.publicKey, secretKey: k.secretKey };
 }
 
@@ -107,7 +112,7 @@ export class ReceiptLog {
     if (lines.length === this.seq) return;
     if (lines.length < this.seq) throw new Error("the receipts log was truncated under the agent");
     const last = JSON.parse(lines[lines.length - 1] as string) as Receipt;
-    if (last.body.seq !== lines.length - 1 || !pqVerify(this.key.publicKey, receiptSignBytes(last.body), hexToBytes(last.sig))) {
+    if (last.body.seq !== lines.length - 1 || !mldsa87.verify(this.key.publicKey, receiptSignBytes(last.body), hexToBytes(last.sig))) {
       throw new Error("the receipts log changed under the agent and its last line does not verify");
     }
     this.seq = lines.length;
@@ -126,7 +131,7 @@ export class ReceiptLog {
       mandateHash,
       data,
     };
-    const sig = bytesToHex(pqSign(this.key.secretKey, receiptSignBytes(body)));
+    const sig = bytesToHex(mldsa87.sign(this.key.secretKey, receiptSignBytes(body)));
     const receipt: Receipt = { body, sig };
     this.sink.append(JSON.stringify(receipt));
     this.seq += 1;
@@ -139,35 +144,45 @@ export type ReceiptCheck =
   | { ok: true; count: number; head: string; receipts: Receipt[] }
   | { ok: false; line: number; error: string };
 
-/** Check every line: well-formed, numbered in order, chained, and signed by `publicKey`. */
+/**
+ * Check every line: well-formed, numbered in order, chained, and signed by
+ * `publicKey`. The structure is checked line by line first; the signatures of
+ * every well-formed line then go to one `batchVerify`. The first failing line
+ * is reported, whichever check it failed.
+ */
 export function verifyReceipts(lines: string[], publicKey: Uint8Array): ReceiptCheck {
   let prev = GENESIS;
   const receipts: Receipt[] = [];
-  for (let i = 0; i < lines.length; i++) {
+  const items: { publicKey: Uint8Array; message: Uint8Array; signature: Uint8Array }[] = [];
+  let broken: { line: number; error: string } | null = null;
+  for (let i = 0; i < lines.length && broken === null; i++) {
     const line = i + 1;
     let r: Receipt;
     try {
       r = JSON.parse(lines[i] as string) as Receipt;
     } catch {
-      return { ok: false, line, error: "not JSON" };
+      broken = { line, error: "not JSON" };
+      break;
     }
     if (typeof r !== "object" || r === null || typeof r.sig !== "string" || typeof r.body !== "object" || r.body === null) {
-      return { ok: false, line, error: "not a receipt" };
+      broken = { line, error: "not a receipt" };
+      break;
     }
-    if (r.body.v !== 1) return { ok: false, line, error: "unknown version" };
-    if (r.body.seq !== i) return { ok: false, line, error: `sequence ${String(r.body.seq)}, expected ${i}` };
-    if (r.body.prev !== prev) return { ok: false, line, error: "does not chain to the previous receipt" };
-    let bytes: Uint8Array;
-    let sig: Uint8Array;
+    if (r.body.v !== 1) broken = { line, error: "unknown version" };
+    else if (r.body.seq !== i) broken = { line, error: `sequence ${String(r.body.seq)}, expected ${i}` };
+    else if (r.body.prev !== prev) broken = { line, error: "does not chain to the previous receipt" };
+    if (broken) break;
     try {
-      bytes = receiptSignBytes(r.body);
-      sig = hexToBytes(r.sig);
+      items.push({ publicKey, message: receiptSignBytes(r.body), signature: hexToBytes(r.sig) });
     } catch (err) {
-      return { ok: false, line, error: `malformed: ${(err as Error).message}` };
+      broken = { line, error: `malformed: ${(err as Error).message}` };
+      break;
     }
-    if (!pqVerify(publicKey, bytes, sig)) return { ok: false, line, error: "signature does not verify" };
     prev = receiptHash(r.body);
     receipts.push(r);
   }
+  const firstBad = batchVerify(mldsa87, items);
+  if (firstBad >= 0) return { ok: false, line: firstBad + 1, error: "signature does not verify" };
+  if (broken) return { ok: false, ...broken };
   return { ok: true, count: lines.length, head: prev, receipts };
 }

@@ -257,3 +257,13 @@ From the approved design (decisions of 15 to 16 November 2026):
 - The human asked for professional logos for all three products. A design agent drew the Peal logo family (the parent mark and the Tender, Sealed Auction and Bidder marks, with lockups, favicons and a brand sheet) in Peal Tender's `docs/brand/`.
 - A worker agent adopted it here without redrawing anything: copied the Bidder and Peal masters (and the sibling marks for the family line) into `apps/web/public/brand/`, replaced the hand-drawn marks with them, put the Bidder lockup in the header and footer, added the parent mark to the footer's family line, and replaced the inline favicon with the Bidder favicon set.
 - Checked in a browser at 1440 and 390 px and at 16 and 32 px favicon size.
+
+### 2026-11-17: more of QoreChain's kits, each for a job (kits pull requests)
+
+**Human decision in this step**: the owner asked for more of QoreChain's kits and network features, used deeply rather than ticked, because the fest's project page shows which ones a repository really uses.
+
+**What the worker agent did**
+
+- Worked out how the fest site decides VERIFIED (read off the project pages of all 63 entries and the dependency files of the repositories behind them, recorded in `docs/spikes.md`), and read the README and typings of every listed kit.
+- Wrote `docs/kits.md`: for each kit and network feature, use it or not and the product reason. Six kits and seven features are left out, each with the reason (for example the wallet adapter, which would put the owner's ML-DSA-87 key in a web page, and the PQ light client, which cannot check the live chain yet).
+- First pull request: the receipts log signs and checks with qorechain-pqc's ML-DSA-87 directly, byte-identical to before (a test checks the published live log, signed earlier, still verifies), and the web app's QoreX connection uses QoreChain's QoreX integrations kit, which also reports whether QoreX committed a transaction without its ML-DSA-87 layer.

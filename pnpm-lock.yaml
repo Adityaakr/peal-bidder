@@ -20,12 +20,18 @@ importers:
       '@qorechain/evm':
         specifier: 0.14.0
         version: 0.14.0(viem@2.57.20(typescript@5.9.3))
+      '@qorechain/pqc':
+        specifier: 0.2.3
+        version: 0.2.3
       '@qorechain/qoreseal':
         specifier: 0.1.0
         version: 0.1.0
       '@qorechain/qoresign':
         specifier: 0.2.0
         version: 0.2.0
+      '@qorechain/qorex-types':
+        specifier: 0.1.0
+        version: 0.1.0
       '@qorechain/sdk':
         specifier: 0.14.0
         version: 0.14.0(viem@2.57.20(typescript@5.9.3))
@@ -397,6 +403,10 @@ packages:
 
   '@qorechain/qoresign@0.2.0':
     resolution: {integrity: sha512-bOhFn/Xb5SQbDrOccYa0sKsh7Ds07qyeUd3JrqjqqRyx8sUOgu8HeOYV2tWR+7hVeHKhWaTY6oGEnEax+JeVcQ==}
+    engines: {node: '>=20'}
+
+  '@qorechain/qorex-types@0.1.0':
+    resolution: {integrity: sha512-M3rzdQp9YfEPuQ2EnBtqjAxR61T4lPD0JrW35Hh7k6Ny4E0o3qITvGGN8ssHnBzPz0yq2vVY/BECpjaAvT5xWQ==}
     engines: {node: '>=20'}
 
   '@qorechain/sdk@0.14.0':
@@ -1377,6 +1387,8 @@ snapshots:
       '@scure/base': 2.4.0
       '@scure/bip32': 2.4.0
       '@scure/bip39': 2.4.0
+
+  '@qorechain/qorex-types@0.1.0': {}
 
   '@qorechain/sdk@0.14.0(viem@2.57.20(typescript@5.9.3))':
     dependencies:

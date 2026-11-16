@@ -140,3 +140,14 @@ Run: `pnpm web:smoke` (headless Chromium against the Vite dev server and its pro
 - **Sealing a bid in the browser works**: the guest agent sealed a bid to the 2-of-3 committee of auction `0xE5fC…be76` (members checked against the chain), 5,828 bytes of `commitBid` calldata, and sent nothing.
 - **No auction was taking bids** at 15:00 UTC: the factory's four auctions had all closed. The playground rehearses on the last one, read from the chain and treated as open, and says so.
 - **ML-DSA-87 in the page:** checking the live agent's 21 receipts takes about 30 ms in Chromium on a laptop.
+
+### 2026-11-17 (UTC): how the fest site verifies kits and features
+
+Read-only. The fest's project page marks each ticked kit and network feature VERIFIED or DECLARED ("Verified means found in the repo's dependency files or proven on testnet"). The rule is not published, so it was read off the site: the project pages of all 63 entries on build.qorechain.io, and the dependency files of the repositories whose items show VERIFIED.
+
+- **Kits are matched by npm package name in any `package.json` of the repository**, nested ones included. Examples: wicketgate has `@qorechain/mcp` only in `packages/watcher/package.json` and `@qorechain/qorescan` in the root, and both kits are verified; DeadDrop has `@qorechain/handles` only in `web/package.json`; Perennial and steal-this-vault list `create-qorechain-dapp` as a dependency and it verifies; Fenestella's `@qorechain/wallet-adapter`; entries with `@qorechain/qorex-types` (and no other QoreX package) show "QoreX integrations" verified. Peal Tender's `@qorechain/pqc` verifies "qorechain-pqc", while Peal Sealed Auction, which uses it only through qore-pq-kit, shows it DECLARED: **transitive dependencies do not count**.
+- **Two network features are verified from dependencies too**: "MCP server or qore CLI" (wicketgate, with `@qorechain/mcp`) and "QoreScan" (wicketgate and LatticeWard, with `@qorechain/qorescan`).
+- **The other features come from the listed addresses' activity**: hybrid transactions (52 entries verified), key registration (52), EVM window (41), fest tokens (39), the encryption key registry (16), AMM pools (13), spending rules (6). "Solidity PQC key status" and "Solidity PQC signature check" are verified on no entry (23 declared each), and "Sign In With QoreChain" is declared by one entry and verified by none.
+- The custody kit is not on any registry (`git clone` only), and no entry shows it verified.
+
+What the Bidder does with this is in [kits.md](kits.md).
