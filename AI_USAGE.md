@@ -181,3 +181,9 @@ From the approved design (decisions of 15 to 16 November 2026):
   - claims that looked for bids in logs a `MsgExecuteEVM` call never writes to, now read from storage.
 - Reported two findings honestly instead of hiding them. First, the agent's key can transfer the listed token (fUSD) within the limits; the agent first misread a 1 fUSD transfer as an expected refusal, then read the chain's reason and the SDK text that explain it. Second, `MsgExecuteEVM` events are missing from `eth_getLogs`.
 - Hit a local hook that blocks force-pushes. Rather than bypass it, it moved the branch forward with a merge that adds no content.
+
+### 2026-11-16: the transfer finding, tested (twelfth pull request)
+
+**Human decisions in this step**: the owner asked that the finding be tightened if the chain allows, and otherwise stated plainly. A second demo auction was opened for the test.
+
+**What the worker agent did**: tried the most promising tightening live (leaving fUSD out of the rule). The chain then refused the plain transfer, but also the bid, with a reason that settles it. The agent restored the listed rule, recorded that the day's spend counter survives rule updates (found when the restored rule refused a bid), and wrote the residual bound and mitigations into the threat model. It removed the temporary rule option from the code rather than ship an option the chain makes useless for bidding.
