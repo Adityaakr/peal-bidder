@@ -15,12 +15,47 @@
  * key's nonce is spent), and a replay is refused at delivery while the relayer
  * still pays its fee. What stays here is the relayer's own policy.
  */
-import { qorechainTypes, type EncodeObject } from "@qorechain/sdk";
+import { decodeAuthenticatorExecutions, qorechainTypes, type EncodeObject, type UnifiedAccount } from "@qorechain/sdk";
+import { broadcast } from "qore-pq-kit";
 import type { RelayOutcome as KitRelayOutcome } from "qore-pq-kit/smart-account";
 
 export const EXECUTE_EVM_TYPE_URL = "/qorechain.abstractaccount.v1.MsgExecuteEVM";
 const { MsgExecuteEVM } = qorechainTypes.abstractaccount;
 export type ExecuteEvm = ReturnType<typeof MsgExecuteEVM.fromPartial>;
+
+/** The kit's native fee rate: 150,000 uqor for 1,000,000 gas. */
+export const UQOR_PER_GAS_NUM = 15n;
+export const UQOR_PER_GAS_DEN = 100n;
+/** Gas the outer transaction needs on top of the calls' own limits (hybrid signature checks, transaction bytes). */
+export const RELAY_OVERHEAD_GAS = 400_000n;
+export const MIN_RELAY_GAS = 1_000_000n;
+
+/** Outer gas and fee for relaying `msgs`: the calls' own limits plus overhead (chain v3.2.3 refuses a transaction that provisions less than the call). */
+export function relayFee(msgs: EncodeObject[]): { amount: { denom: string; amount: string }[]; gas: string } {
+  let inner = 0n;
+  for (const m of msgs) inner += BigInt(decodeExecuteEvm(m).gasLimit.toString());
+  let gas = inner + RELAY_OVERHEAD_GAS;
+  if (gas < MIN_RELAY_GAS) gas = MIN_RELAY_GAS;
+  const fee = (gas * UQOR_PER_GAS_NUM + UQOR_PER_GAS_DEN - 1n) / UQOR_PER_GAS_DEN;
+  return { amount: [{ denom: "uqor", amount: fee.toString() }], gas: gas.toString() };
+}
+
+/**
+ * Broadcast from the relayer's account with a fee sized to the calls, then
+ * decode every execution: qore-pq-kit `relay`, with the fee as a parameter
+ * (the kit's relay always sends 1,000,000 gas, too little for a sealed commit).
+ */
+export function sizedRelay(relayer: UnifiedAccount): Broadcaster {
+  return async (msgs) => {
+    try {
+      const res = (await broadcast(relayer, msgs, "hybrid", relayFee(msgs))) as unknown as Parameters<typeof decodeAuthenticatorExecutions>[0] & { transactionHash: string };
+      return { txHash: res.transactionHash, delivered: true, results: decodeAuthenticatorExecutions(res, msgs) };
+    } catch (e) {
+      const message = (e as Error).message;
+      return { txHash: /transaction ([0-9A-F]{64})/.exec(message)?.[1] ?? "", delivered: false, results: [], error: message };
+    }
+  };
+}
 
 export interface RelayPolicy {
   /** This relayer's `qor1` address. */
@@ -70,15 +105,31 @@ export function checkRelayable(m: EncodeObject, policy: RelayPolicy): string | u
 /** The chain refused the whole transaction (non-zero code): nothing executed. */
 const CODE_FAILURE = /failed with code (\d+)/;
 
+/** The linked key's current sequence on chain (SDK `fetchAuthNonce`). */
+export type NonceReader = (account: string, pubkey: Uint8Array) => Promise<bigint>;
+
 export class Relayer {
   constructor(
     private readonly policy: RelayPolicy,
     private readonly send: Broadcaster,
+    /** When given, a message whose nonce is not the key's current one is refused before broadcasting (a replay still costs the relayer its fee, spike S2). */
+    private readonly nonceOf?: NonceReader,
   ) {}
 
   async relay(m: EncodeObject): Promise<RelayOutcome> {
     const refusal = checkRelayable(m, this.policy);
     if (refusal) return { status: "refused", reason: `relayer: ${refusal}` };
+    if (this.nonceOf) {
+      const x = decodeExecuteEvm(m);
+      let current: bigint;
+      try {
+        current = await this.nonceOf(x.account, x.pubkey);
+      } catch (err) {
+        return { status: "refused", reason: `relayer: the key's nonce cannot be read (${(err as Error).message})` };
+      }
+      const nonce = BigInt(x.nonce.toString());
+      if (nonce !== current) return { status: "refused", reason: `relayer: nonce ${nonce} is not the key's current ${current} (a replay or a stale message)` };
+    }
     let res: KitRelayOutcome;
     try {
       res = await this.send([m]);

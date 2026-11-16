@@ -4,6 +4,7 @@
  *
  *   pnpm demo:testnet --check --auction 0x<auction>     read-only: what is in place, what is missing
  *   pnpm demo:testnet --auction 0x<auction> [--budget 300 --max-per-bid 100 --max-tick 40]
+ *   pnpm demo:testnet --claim --auction 0x<auction>          after finalize: claim the agent's bids (scene 4)
  *
  * It plays the owner, the agent and the relayer on one machine, so it reads
  * both `owner/` and `agent/`: a demo convenience, disclosed in the video. The
@@ -21,7 +22,6 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fetchAuthenticators, fetchKemKey, fetchPqcStatus, fetchSpendingRules } from "@qorechain/sdk";
-import { relay as kitRelay } from "qore-pq-kit/smart-account";
 import { createPublicClient, encodeFunctionData, erc20Abi, http, type Address, type Hex } from "viem";
 import { accountAddress, loadAccount, qoreSignKeys } from "../common/accounts.ts";
 import { main, out, parseFlags, str, units, int } from "../common/cli.ts";
@@ -42,7 +42,8 @@ import { buildMandate } from "../common/mandate.ts";
 import { mandateFields, sealMandate, signMandate } from "../owner-cli/mandate.ts";
 import { chainRecipient, readCard } from "../owner-cli/recipient.ts";
 import { allowance } from "../owner-cli/chain.ts";
-import { Relayer, type Broadcaster } from "../relayer/relayer.ts";
+import { auctionOutcome, claimAll } from "../agent/claims.ts";
+import { Relayer, sizedRelay, type Broadcaster } from "../relayer/relayer.ts";
 import { envelopeToText } from "@qorechain/qoreseal";
 import { sealInstruction, signInstruction } from "qore-pq-kit/messaging";
 
@@ -65,6 +66,36 @@ async function run(): Promise<void> {
   const relayerAcc = accountAddress(op.relayer);
   const budget = units(flags, "budget", FUSD_DECIMALS, "300");
   const maxPerBid = units(flags, "max-per-bid", FUSD_DECIMALS, "100");
+
+  // ---------------------------------------------------------------- scene 4: claims after settlement
+  if (flags.claim === true) {
+    const id = loadAgentIdentity(ag);
+    const relayerFull = await loadAccount(op.relayer);
+    const relayer = new Relayer(
+      { relayer: relayerAcc.cosmos, account: owner.cosmos, targets: [auction], maxGas: 3_000_000n },
+      sizedRelay(relayerFull),
+      async (account, pubkey) => (await fetchAuthNonce({ rest: net.rest, address: account, pubkey })).nonce,
+    );
+    const executor = new SmartAccountExecutor({
+      privateKey: id.account.privateKey,
+      chainId: net.chainId,
+      owner: owner.cosmos,
+      relayer: relayerAcc.cosmos,
+      encoder: { encode: async () => Promise.reject(new Error("claims only")) },
+      relay: { relay: (m) => relayer.relay(m) },
+      authNonce: async () => (await fetchAuthNonce({ rest: net.rest, address: owner.cosmos, pubkey: id.account.evm })).nonce,
+      digestVersion: () => resolveEvmAuthDigestVersion({ rest: net.rest }),
+    });
+    const outcome = await auctionOutcome(client, auction, owner.evm as Address);
+    const receipts = new ReceiptLog(new FileSink(ag.receipts), id.receiptKey, id.account.cosmos);
+    const claims = await claimAll({ outcome, sender: executor, receipts, mandateHash: null });
+    const results = { auction, scene: "4: claims after settlement", state: outcome.state, clearingPrice: outcome.clearingPrice, bids: outcome.bids, claims, at: new Date().toISOString() };
+    mkdirSync(op.outbox, { recursive: true, mode: 0o700 });
+    const file = join(op.outbox, `demo-claims-${Date.now()}.json`);
+    writeFileSync(file, `${JSON.stringify(results, (_k, v) => (typeof v === "bigint" ? v.toString() : v), 2)}\n`);
+    out({ file, results });
+    return;
+  }
 
   // ---------------------------------------------------------------- preconditions (read-only)
   const checks: Check[] = [];
@@ -153,8 +184,9 @@ async function run(): Promise<void> {
   const recipient = await chainRecipient({ rest: net.rest, chainId: net.chainId, info, card: readCard(ag.card) });
   const { envelope, mandateHash } = sealMandate({ signed: signMandate(mandate, qoreSignKeys(ownerAcc)), mandate, recipient });
 
-  const send: Broadcaster = (msgs) => kitRelay(relayerFull, msgs);
-  const makeRelayer = (targets: string[]) => new Relayer({ relayer: relayerAcc.cosmos, account: owner.cosmos, targets, maxGas: 3_000_000n }, send);
+  const send: Broadcaster = sizedRelay(relayerFull);
+  const nonceOf = async (account: string, pubkey: Uint8Array) => (await fetchAuthNonce({ rest: net.rest, address: account, pubkey })).nonce;
+  const makeRelayer = (targets: string[]) => new Relayer({ relayer: relayerAcc.cosmos, account: owner.cosmos, targets, maxGas: 3_000_000n }, send, nonceOf);
   const encoder = new SealedBidEncoder({ client, rest: net.rest, evmChainId: net.evmChainId, sealChainId: net.chainId, bidder: owner.evm as Address });
   const executorWith = (targets: string[]) => {
     const relayer = makeRelayer(targets);

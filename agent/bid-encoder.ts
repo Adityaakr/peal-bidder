@@ -51,7 +51,8 @@ export interface SealedBidEncoderDeps {
   verify?: typeof verifyMember;
 }
 
-export const DEFAULT_COMMIT_GAS = 1_500_000n;
+/** A sealed commit measured 405k to 439k gas on the testnet (Peal Sealed Auction's demo run); with headroom. */
+export const DEFAULT_COMMIT_GAS = 800_000n;
 
 export class SealedBidEncoder implements BidEncoder {
   private readonly committees = new Map<string, Committee>();

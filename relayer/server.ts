@@ -9,11 +9,12 @@
  * Binds 127.0.0.1 only. The relayer's key stays in ~/.qore-peal-bidder/owner/relayer.env.
  */
 import { createServer, type IncomingMessage } from "node:http";
-import { relay as kitRelay } from "qore-pq-kit/smart-account";
+import { fetchAuthNonce } from "@qorechain/sdk";
+import { network } from "../common/network.ts";
 import { accountAddress, loadAccount } from "../common/accounts.ts";
 import { int, list, main, out, parseFlags } from "../common/cli.ts";
 import { bidderHome, ownerPaths } from "../common/home.ts";
-import { Relayer, decodeExecuteEvmWire, type Broadcaster } from "./relayer.ts";
+import { Relayer, decodeExecuteEvmWire, sizedRelay, type Broadcaster } from "./relayer.ts";
 
 const MAX_BODY = 64 * 1024;
 
@@ -34,8 +35,9 @@ async function run(): Promise<void> {
   const relayerAcc = await loadAccount(op.relayer);
   const owner = accountAddress(op.owner);
   const targets = list(flags, "targets").map((t) => t.toLowerCase());
-  const send: Broadcaster = (msgs) => kitRelay(relayerAcc, msgs);
-  const relayer = new Relayer({ relayer: relayerAcc.cosmos, account: owner.cosmos, targets, maxGas: 3_000_000n }, send);
+  const send: Broadcaster = sizedRelay(relayerAcc);
+  const rest = network().rest;
+  const relayer = new Relayer({ relayer: relayerAcc.cosmos, account: owner.cosmos, targets, maxGas: 3_000_000n }, send, async (account, pubkey) => (await fetchAuthNonce({ rest, address: account, pubkey })).nonce);
   const port = int(flags, "port", 8787);
 
   createServer(async (req, res) => {
