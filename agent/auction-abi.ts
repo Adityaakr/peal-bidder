@@ -176,6 +176,17 @@ export const committeeRegistryAbi = [
 ] as const;
 
 export const auctionFactoryAbi = [
+  { type: "function", name: "auctionCount", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  {
+    type: "function",
+    name: "auctionsPaged",
+    stateMutability: "view",
+    inputs: [
+      { name: "offset", type: "uint256" },
+      { name: "limit", type: "uint256" },
+    ],
+    outputs: [{ name: "page", type: "address[]" }],
+  },
   {
     type: "event",
     name: "AuctionCreated",

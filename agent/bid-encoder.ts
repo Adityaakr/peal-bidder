@@ -24,8 +24,9 @@ import type { PealMandateV1 } from "../common/mandate.ts";
 import type { BidDecision } from "./agent.ts";
 import { MAX_ENVELOPE_BYTES, SHARE_PURPOSE, committeeRegistryAbi, encodePlaintext, sealedAuctionAbi } from "./auction-abi.ts";
 import type { BidEncoder, EncodedBid } from "./smart-account-executor.ts";
+import { scanBackwards } from "./logs.ts";
 
-export type EncoderClient = Pick<PublicClient, "readContract" | "getContractEvents" | "call">;
+export type EncoderClient = Pick<PublicClient, "readContract" | "getContractEvents" | "call" | "getBlockNumber">;
 
 export interface Committee {
   threshold: number;
@@ -50,7 +51,8 @@ export interface SealedBidEncoderDeps {
   verify?: typeof verifyMember;
 }
 
-export const DEFAULT_COMMIT_GAS = 1_500_000n;
+/** A sealed commit measured 405k to 439k gas on the testnet (Peal Sealed Auction's demo run); with headroom. */
+export const DEFAULT_COMMIT_GAS = 800_000n;
 
 export class SealedBidEncoder implements BidEncoder {
   private readonly committees = new Map<string, Committee>();
@@ -78,14 +80,15 @@ export class SealedBidEncoder implements BidEncoder {
     setMembers.forEach((m, i) => {
       if (m.account.toLowerCase() !== (members[i] as string).toLowerCase()) throw new Error(`committee member ${i + 1} differs between auction and registry`);
     });
-    const logs = await client.getContractEvents({
-      address: registry,
-      abi: committeeRegistryAbi,
-      eventName: "MemberJoined",
-      args: { setId: cfg.committeeSetId },
-      fromBlock: this.deps.fromBlock ?? 0n,
-      strict: true,
-    });
+    const logs = await scanBackwards(
+      client,
+      (fromBlock, toBlock) =>
+        client.getContractEvents({ address: registry, abi: committeeRegistryAbi, eventName: "MemberJoined", args: { setId: cfg.committeeSetId }, fromBlock, toBlock, strict: true }),
+      {
+        done: (found) => new Set(found.map((l) => Number(l.args.index))).size >= setMembers.length,
+        ...(this.deps.fromBlock !== undefined ? { fromBlock: this.deps.fromBlock } : {}),
+      },
+    );
     const cards = new Map<number, Hex>();
     for (const l of logs) cards.set(Number(l.args.index), l.args.card as Hex);
     const verify = this.deps.verify ?? verifyMember;

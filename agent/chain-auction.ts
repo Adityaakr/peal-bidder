@@ -11,8 +11,9 @@ import { encodeAbiParameters, keccak256, type Address, type Hex, type PublicClie
 import type { AuctionReader } from "./agent.ts";
 import { AUCTION_STATE, auctionFactoryAbi, sealedAuctionAbi } from "./auction-abi.ts";
 import type { AuctionView } from "./auction.ts";
+import { scanBackwards } from "./logs.ts";
 
-export type AuctionClient = Pick<PublicClient, "readContract" | "getContractEvents" | "getBlock">;
+export type AuctionClient = Pick<PublicClient, "readContract" | "getContractEvents" | "getBlock" | "getBlockNumber">;
 
 export function metadataHash(name: string, details: string): Hex {
   return keccak256(encodeAbiParameters([{ type: "string" }, { type: "string" }], [name, details]));
@@ -26,14 +27,19 @@ export class ChainAuctionReader implements AuctionReader {
 
   private async metadata(auction: Address, expected: Hex): Promise<{ name: string; details: string; verified: boolean }> {
     if (!this.opts.factory) return { name: "", details: "", verified: false };
-    const logs = await this.client.getContractEvents({
-      address: this.opts.factory,
-      abi: auctionFactoryAbi,
-      eventName: "AuctionCreated",
-      args: { auction },
-      fromBlock: this.opts.fromBlock ?? 0n,
-      strict: true,
-    });
+    const factory = this.opts.factory;
+    let logs;
+    try {
+      logs = await scanBackwards(
+        this.client,
+        (fromBlock, toBlock) =>
+          this.client.getContractEvents({ address: factory, abi: auctionFactoryAbi, eventName: "AuctionCreated", args: { auction }, fromBlock, toBlock, strict: true }),
+        { done: (found) => found.length > 0, ...(this.opts.fromBlock !== undefined ? { fromBlock: this.opts.fromBlock } : {}) },
+      );
+    } catch {
+      // The text is optional: without it the planner still sees every number from the contract.
+      return { name: "", details: "", verified: false };
+    }
     for (const l of logs) {
       const { name, details } = l.args as { name: string; details: string };
       if (metadataHash(name, details).toLowerCase() === expected.toLowerCase()) return { name, details, verified: true };

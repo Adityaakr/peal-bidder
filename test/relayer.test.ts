@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { deriveUnifiedAccount, evmAuthSignBytes, evmAuthSignBytesV2, executeEvmMsg, generateMnemonic, qorechainTypes, type EncodeObject } from "@qorechain/sdk";
 import { hexToBytes, recoverMessageAddress, type Hex } from "viem";
-import { Relayer, checkRelayable, decodeExecuteEvm, decodeExecuteEvmWire, encodeExecuteEvmWire, type Broadcaster, type RelayOutcome, type RelayPolicy } from "../relayer/relayer.ts";
+import { RELAY_OVERHEAD_GAS, Relayer, relayFee, checkRelayable, decodeExecuteEvm, decodeExecuteEvmWire, encodeExecuteEvmWire, type Broadcaster, type RelayOutcome, type RelayPolicy } from "../relayer/relayer.ts";
 import { SmartAccountExecutor, type BidEncoder } from "../agent/smart-account-executor.ts";
 import { kitOutcome } from "./relay-outcome.ts";
 import { TESTNET_CHAIN_ID } from "../common/network.ts";
@@ -198,5 +198,29 @@ describe("executor outcomes", () => {
   it("passes the relayer's verdict to the agent", async () => {
     const { ex } = executor({ relay: async () => ({ status: "refused", txHash: "T", reason: "spending limit exceeded" }) });
     expect(await ex.submit(DECISION, sampleMandate(owner, newAgent()))).toEqual({ status: "refused", txHash: "T", reason: "spending limit exceeded" });
+  });
+});
+
+describe("relay fee and nonce check", () => {
+  async function msgWithGas(gas: bigint) {
+    const { ex } = executor();
+    const m = decodeExecuteEvm(await ex.build(DECISION, sampleMandate(owner, newAgent())));
+    return executeEvmMsg({ relayer: m.relayer, account: m.account, scheme: "secp256k1", pubkey: m.pubkey, signature: m.signature, to: m.to, value: m.value, data: m.data, gasLimit: gas, nonce: BigInt(m.nonce.toString()) });
+  }
+
+  it("provisions the call's own gas plus overhead, at the kit's rate (150,000 uqor per 1,000,000 gas)", async () => {
+    expect(relayFee([await msgWithGas(800_000n)])).toEqual({ amount: [{ denom: "uqor", amount: String(((800_000n + RELAY_OVERHEAD_GAS) * 15n) / 100n) }], gas: String(800_000n + RELAY_OVERHEAD_GAS) });
+    expect(relayFee([await msgWithGas(28_000n)])).toEqual({ amount: [{ denom: "uqor", amount: "150000" }], gas: "1000000" });
+  });
+
+  it("refuses a stale or replayed nonce before paying for a broadcast", async () => {
+    let calls = 0;
+    const send = async (msgs: EncodeObject[]) => (calls++, kitOutcome(delivered(true), msgs));
+    const stale = new Relayer(policy, send, async () => 8n);
+    expect(await stale.relay(await msgWithGas(900_000n))).toMatchObject({ status: "refused", reason: expect.stringMatching(/nonce 7 is not the key's current 8/) });
+    expect(calls).toBe(0);
+    const current = new Relayer(policy, send, async () => 7n);
+    expect(await current.relay(await msgWithGas(900_000n))).toMatchObject({ status: "landed" });
+    expect(calls).toBe(1);
   });
 });
