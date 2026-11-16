@@ -32,6 +32,9 @@ importers:
       '@qorechain/qore-cli':
         specifier: 0.1.1
         version: 0.1.1
+      '@qorechain/qorescan':
+        specifier: 0.1.0
+        version: 0.1.0
       '@qorechain/qoreseal':
         specifier: 0.1.0
         version: 0.1.0
@@ -426,6 +429,11 @@ packages:
   '@qorechain/qore-cli@0.1.1':
     resolution: {integrity: sha512-2omWPHwtI/ouOGDKz1aFSJTVFYQZpm4aO5NfONQAEjJEc9JWcFUDdbYESLOYPG+6gNYvT6dH4AfuxgMvupLohg==}
     engines: {node: '>=20'}
+    hasBin: true
+
+  '@qorechain/qorescan@0.1.0':
+    resolution: {integrity: sha512-PIewGe1NoeqggtGrsQ0rOOyWn4vnUoBVZpMlSZnb/udBlbCvyWDwDZ41QvBu6B6+9SYKPGnTpjOmGk11hyipIg==}
+    engines: {node: '>=18'}
     hasBin: true
 
   '@qorechain/qoreseal@0.1.0':
@@ -1781,6 +1789,8 @@ snapshots:
       '@qorechain/qoresign': 0.1.0
       '@scure/bip39': 2.4.0
       zod: 4.6.7
+
+  '@qorechain/qorescan@0.1.0': {}
 
   '@qorechain/qoreseal@0.1.0':
     dependencies:

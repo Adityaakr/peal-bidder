@@ -82,6 +82,20 @@ The split is the main defence against a compromised or misbehaving agent: the ke
 - **QoreSeal 0.1.0 is a draft** pending external review, and pins QoreSign 0.1.0 while this repository uses 0.2.0 for signatures.
 - **Demo setup.** In the fest demo the owner runs the agent, the relayer and all three auction committee keys (design decision D3), disclosed as demo-only.
 
+## Cryptographic inventory
+
+What is post-quantum here and what is not, from a QoreScan scan of the deployment the Bidder depends on: the testnet, its three accounts, and the three public endpoints. Run with `pnpm cbom`; the CBOM and its summary are in [docs/cbom/](docs/cbom/README.md), and `test/cbom.test.ts` holds this section to them.
+
+| Asset | Cryptography | Post-quantum? | What it means for the Bidder |
+|---|---|---|---|
+| The owner's, agent account's and relayer's authority | hybrid secp256k1 + ML-DSA-87 (all three keys registered, hybrid) | yes: both signatures are required, and the chain allows no classical fallback | Mandates, the spending rule, windows and every relayed bid need the ML-DSA-87 half |
+| The agent's envelope key | ML-KEM-1024 + X25519 (QoreSeal), registered in the chain's KEM registry | yes | A recorded mandate stays sealed against a future quantum attacker |
+| The receipts | ML-DSA-87 (qorechain-pqc) | yes | |
+| TLS to `evm-testnet`, `api-testnet`, `rpc-testnet` | key exchange X25519MLKEM768 (hybrid); certificates ECDSA P-256 and P-384 | **key exchange only** | Recorded traffic stays confidential against a future quantum attacker. A quantum attacker who can forge the certificates could still impersonate an endpoint to the agent; see below |
+| The chain's consensus | Ed25519 validator keys (4 at the scan) | **no** | A light client cannot check the chain post-quantum yet; the PQ light client kit needs checkpoints the chain does not produce ([docs/kits.md](docs/kits.md)) |
+
+**An impersonated endpoint** (a quantum attacker forging an ECDSA certificate, or anyone controlling the agent's network or DNS) can lie to the agent. It could serve a fake ML-DSA-87 key for the owner, so that a forged mandate verifies, or fake auctions. It cannot spend beyond the chain's limits: the spending rule, the allowance and the linked key's expiry are enforced by the validators, not by what the endpoint says. Mitigations: keep the chain-side limits as the real budget (as above); run the agent against your own node when it matters; and check the agent against the chain from another vantage point (`pnpm agent audit` from the owner's machine, the dashboard).
+
 ## The web app (`apps/web`, hosted on Vercel)
 
 Added 16 November 2026, when the owner chose a public site with wallet connect for all three Peal entries.

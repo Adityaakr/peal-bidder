@@ -167,3 +167,12 @@ Run at about 21:38 UTC: the live agent's folder served in dry-run (`pnpm agent s
 - The agent read the owner's ML-DSA-87 key from `pqcKeyStatus` (possession proven) and accepted both Sign In With QoreChain messages. The ticks in between logged `{"idle":"paused by the owner"}`, and after the resume the agent went back to its own reason ("the mandate has expired").
 - Each change is a `control` receipt. The live log went from 21 to 23 receipts, and `pnpm agent receipts` verifies the chain and every signature.
 - QoreSign 0.2.0's `signSiwq` refuses to sign for an address the classical key does not control. `verifySiwq` with `requirePq` refuses a sign-in without its ML-DSA-87 half, and one whose ML-DSA-87 half comes from a key other than the registered one: the case of a stolen classical key paired with the thief's own ML-DSA-87 key (`test/control.test.ts`).
+
+### 2026-11-16 (UTC): QoreScan on the Bidder's deployment
+
+Run: `pnpm cbom` (QoreScan 0.1.0 through its npm launcher; the binary is downloaded on first use and checked against the SHA-256 shipped in the package), 21:41 UTC. Read-only.
+
+- **TLS:** all three public endpoints (`evm-testnet`, `api-testnet`, `rpc-testnet`) negotiate TLS 1.3 with the hybrid group X25519MLKEM768 when it is offered first. Their certificates are ECDSA (P-256 leaf, P-384 in the chain, under GTS Root R4). So the key exchange is post-quantum, but endpoint authentication is not.
+- **Chain:** 24 protocol features reported, among them `pqc-sign-bytes-v2`, `pqc-kem-registry`, `evm-pqc-window-targets` and `pqc-possession-flag`. The validators' consensus keys are Ed25519 (4 active).
+- **Accounts:** the owner, agent account and relayer each have a hybrid ML-DSA-87 key; QoreScan's evidence line names the algorithm "dilithium5", the chain's older name for it. The agent account also has its ML-KEM-1024 key in the KEM registry.
+- The threat model gained a "Cryptographic inventory" section from this, including what an impersonated endpoint could and could not do.
