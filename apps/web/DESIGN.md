@@ -37,7 +37,8 @@ Red never decorates. Wherever red appears, it marks a limit or something stopped
 - **Text:** IBM Plex Sans 400/500/600, 16px body and 19px leads.
 - **Data:** IBM Plex Mono 400/500/600. It sets the console, hashes, figures, section
   labels and diagram labels.
-- **The wordmark:** Inter 600, 17px.
+- **The logo:** the Peal Bidder mark and lockup from the Peal logo family (masters in Peal
+  Tender's `docs/brand/`, served unaltered from `apps/web/public/brand/`).
 
 The pairing comes from the console: one family in three widths, so data and prose read
 as one instrument.

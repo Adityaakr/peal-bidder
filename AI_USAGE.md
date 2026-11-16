@@ -251,3 +251,9 @@ From the approved design (decisions of 15 to 16 November 2026):
   - panels too small to read on a phone, now in their own scroller;
   - attack tracks without layer names on narrow screens;
   - stray cell borders in the phone run table.
+
+### 2026-11-17: the new logo
+
+- The human asked for professional logos for all three products. A design agent drew the Peal logo family (the parent mark and the Tender, Sealed Auction and Bidder marks, with lockups, favicons and a brand sheet) in Peal Tender's `docs/brand/`.
+- A worker agent adopted it here without redrawing anything: copied the Bidder and Peal masters (and the sibling marks for the family line) into `apps/web/public/brand/`, replaced the hand-drawn marks with them, put the Bidder lockup in the header and footer, added the parent mark to the footer's family line, and replaced the inline favicon with the Bidder favicon set.
+- Checked in a browser at 1440 and 390 px and at 16 and 32 px favicon size.
