@@ -2,11 +2,11 @@
 
 The fest's project page has two checklists, "Kits" and "Network features". This file is the Bidder's plan for both: for every item, whether the Bidder uses it and the product reason, or why not. An item earns a place only if it does a job the Bidder needs; nothing is added to tick a box.
 
-Researched 17 November 2026 (UTC) from the npm registry, the packages' READMEs and typings, the QoreChain docs repository, and the fest site itself.
+Researched 16 November 2026 (UTC, evening) from the npm registry, the packages' READMEs and typings, the QoreChain docs repository, and the fest site itself.
 
 ## How the fest site verifies
 
-Found by reading the project pages of all 63 entries on build.qorechain.io on 17 November and the dependency files of the repositories whose items show as verified ([spikes.md](spikes.md#2026-11-17-utc-how-the-fest-site-verifies-kits-and-features)):
+Found by reading the project pages of all 63 entries on build.qorechain.io on 16 November (UTC) and the dependency files of the repositories whose items show as verified ([spikes.md](spikes.md#2026-11-16-utc-how-the-fest-site-verifies-kits-and-features)):
 
 - **A kit is VERIFIED when its npm package is in any `package.json` in the repository**, including nested ones (`packages/*/package.json`, `web/package.json`), in `dependencies` or `devDependencies`. The packages that turn each kit green, as observed:
 
