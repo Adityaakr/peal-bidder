@@ -5,6 +5,8 @@
  *   pnpm demo:testnet --check --auction 0x<auction>     read-only: what is in place, what is missing
  *   pnpm demo:testnet --auction 0x<auction> [--budget 300 --max-per-bid 100 --max-tick 40]
  *   pnpm demo:testnet --claim --auction 0x<auction>          after finalize: claim the agent's bids (scene 4)
+ *   pnpm demo:testnet --off-target 0x<contract> --auction 0x<auction>
+ *                                                            scene 3b alone, against a contract that is not on the allowlist
  *
  * It plays the owner, the agent and the relayer on one machine, so it reads
  * both `owner/` and `agent/`: a demo convenience, disclosed in the video. The
@@ -22,7 +24,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fetchAuthenticators, fetchKemKey, fetchPqcStatus, fetchSpendingRules } from "@qorechain/sdk";
-import { createPublicClient, encodeFunctionData, erc20Abi, http, type Address, type Hex } from "viem";
+import { createPublicClient, encodeFunctionData, erc20Abi, http, toFunctionSelector, type Address, type Hex } from "viem";
 import { accountAddress, loadAccount, qoreSignKeys } from "../common/accounts.ts";
 import { main, out, parseFlags, str, units, int } from "../common/cli.ts";
 import { agentPaths, bidderHome, ownerPaths } from "../common/home.ts";
@@ -93,6 +95,36 @@ async function run(): Promise<void> {
     mkdirSync(op.outbox, { recursive: true, mode: 0o700 });
     const file = join(op.outbox, `demo-claims-${Date.now()}.json`);
     writeFileSync(file, `${JSON.stringify(results, (_k, v) => (typeof v === "bigint" ? v.toString() : v), 2)}\n`);
+    out({ file, results });
+    return;
+  }
+
+  // ---------------------------------------------------------------- scene 3b alone: a call to a contract off the allowlist
+  if (typeof flags["off-target"] === "string") {
+    const target = flags["off-target"].toLowerCase() as Address;
+    const id = loadAgentIdentity(ag);
+    const relayerFull = await loadAccount(op.relayer);
+    // The demo relayer admits the target, so that the chain, not the relayer, is what refuses.
+    const relayer = new Relayer(
+      { relayer: relayerAcc.cosmos, account: owner.cosmos, targets: [auction, target], maxGas: 3_000_000n },
+      sizedRelay(relayerFull),
+      async (account, pubkey) => (await fetchAuthNonce({ rest: net.rest, address: account, pubkey })).nonce,
+    );
+    const executor = new SmartAccountExecutor({
+      privateKey: id.account.privateKey,
+      chainId: net.chainId,
+      owner: owner.cosmos,
+      relayer: relayerAcc.cosmos,
+      encoder: { encode: async () => Promise.reject(new Error("off-target only")) },
+      relay: { relay: (m) => relayer.relay(m) },
+      authNonce: async () => (await fetchAuthNonce({ rest: net.rest, address: owner.cosmos, pubkey: id.account.evm })).nonce,
+      digestVersion: () => resolveEvmAuthDigestVersion({ rest: net.rest }),
+    });
+    const call = { to: target as Hex, data: toFunctionSelector(str(flags, "signature", "auctionCount()")), gasLimit: 200_000n };
+    const results = { auction, scene: "3b: a call to a contract that is not on the allowlist", target, signature: str(flags, "signature", "auctionCount()"), submit: await executor.sendCall(call), at: new Date().toISOString() };
+    mkdirSync(op.outbox, { recursive: true, mode: 0o700 });
+    const file = join(op.outbox, `demo-offtarget-${Date.now()}.json`);
+    writeFileSync(file, `${JSON.stringify(results, null, 2)}\n`);
     out({ file, results });
     return;
   }

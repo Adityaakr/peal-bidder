@@ -167,3 +167,17 @@ From the approved design (decisions of 15 to 16 November 2026):
 - Looked up the OpenRouter model id (`anthropic/claude-opus-5.5`) and its supported parameters from OpenRouter's public model list, and wrote the OpenRouter planner with plain `fetch` (no new dependency). The Anthropic-SDK planner stays for an Anthropic key.
 - Made the test runner force the rule-based planner (`PEAL_BIDDER_PLANNER=rules`), so no test can reach a paid model, and made the offline demo use the rules unless `--model` is given.
 - Spent one live request ($0.011) to check the request shape and record a real answer for the tests, instead of a second hand-written fixture.
+
+### 2026-11-16: the live demo (tenth pull request onwards)
+
+**Human decisions in this step**: the owner funded the accounts. The orchestrator chose option (a): the auction worker opened a demo auction for the Bidder and ran the committee's releases and finalize. The owner asked for every case of the design on chain.
+
+**What the worker agent did**
+
+- Approved, linked, checked all preconditions, and ran the demo: a landed bid; an over-limit commit and an off-allowlist call, both refused by the chain; a forged mandate refused by the agent; an injected instruction that Claude disregarded; and, after finalize, both claims. Every hash is in `docs/spikes.md`.
+- Fixed three problems the live chain exposed before they cost anything:
+  - the public RPC's 10,000-block log limit (PR 10);
+  - a relay fee too small for a sealed commit, now sized to the call, with stale nonces refused before broadcasting;
+  - claims that looked for bids in logs a `MsgExecuteEVM` call never writes to, now read from storage.
+- Reported two findings honestly instead of hiding them. First, the agent's key can transfer the listed token (fUSD) within the limits; the agent first misread a 1 fUSD transfer as an expected refusal, then read the chain's reason and the SDK text that explain it. Second, `MsgExecuteEVM` events are missing from `eth_getLogs`.
+- Hit a local hook that blocks force-pushes. Rather than bypass it, it moved the branch forward with a merge that adds no content.
