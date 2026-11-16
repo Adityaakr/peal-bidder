@@ -24,7 +24,8 @@ jobs:
       - run: pnpm test
 
   web:
-    runs-on: ubuntu-latest
+    # Playwright's headless shell does not support ubuntu-latest (26.04) yet; 24.04 is supported.
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
