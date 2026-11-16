@@ -5,8 +5,9 @@
  *
  * Fresh throwaway keys are made in memory and never written anywhere. The
  * owner's on-chain ML-DSA-87 key is stood in for by a static key source; the
- * auction by a fixed view. With ANTHROPIC_API_KEY set, the planner is Claude
- * Opus 5.5 (a few cents); without it, the rule-based planner.
+ * auction by a fixed view. The planner is the rule-based one unless `--model`
+ * is given (then Claude Opus 5.5 through OpenRouter or the Anthropic API, when a
+ * key is configured; a few cents per round).
  */
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -18,7 +19,7 @@ import { generateSealKeys, recipientOf } from "@qorechain/qoreseal";
 import { BidderAgent, DryRunExecutor } from "../agent/agent.ts";
 import type { AuctionView } from "../agent/auction.ts";
 import { StaticPqKeySource } from "../agent/keysource.ts";
-import { RulePlanner, claudePlannerFromEnv, type Planner } from "../agent/planner/index.ts";
+import { RulePlanner, defaultPlanners, type Planner } from "../agent/planner/index.ts";
 import { FileSink, ReceiptLog, generateReceiptKey, receiptKeyHash, verifyReceipts } from "../agent/receipts.ts";
 import { MemoryMandateStore } from "../agent/store.ts";
 import { buildMandate } from "../common/mandate.ts";
@@ -60,8 +61,8 @@ const view: AuctionView = {
 
 const dir = mkdtempSync(join(tmpdir(), "peal-bidder-demo-"));
 const sink = new FileSink(join(dir, "receipts.jsonl"));
-const claude = claudePlannerFromEnv();
-const planners: Planner[] = claude ? [claude, new RulePlanner()] : [new RulePlanner()];
+// The rules by default; `--model` asks the configured model (it costs a few cents per round).
+const planners: Planner[] = process.argv.includes("--model") ? defaultPlanners() : [new RulePlanner()];
 const executor = new DryRunExecutor();
 const agent = new BidderAgent({
   inbox: {

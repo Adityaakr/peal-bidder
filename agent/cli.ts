@@ -34,7 +34,7 @@ import type { CallSender } from "./smart-account-executor.ts";
 import { FileAuctionReader } from "./auction-file.ts";
 import { initAgentKeys, loadAgentIdentity } from "./identity.ts";
 import { ChainPqKeySource, StaticPqKeySource, type PqKeySource } from "./keysource.ts";
-import { RulePlanner, claudePlannerFromEnv, type Planner } from "./planner/index.ts";
+import { defaultPlanners, type Planner } from "./planner/index.ts";
 import { FileSink, ReceiptLog, verifyReceipts } from "./receipts.ts";
 import { FileMandateStore } from "./store.ts";
 
@@ -57,8 +57,7 @@ export function buildAgent(
   const sink = new FileSink(paths.receipts);
   const check = verifyReceipts(sink.read(), id.receiptKey.publicKey);
   if (!check.ok) throw new Error(`the receipts log is broken at line ${check.line}: ${check.error}`);
-  const claude = claudePlannerFromEnv();
-  const planners = opts.planners ?? (claude ? [claude, new RulePlanner()] : [new RulePlanner()]);
+  const planners = opts.planners ?? defaultPlanners();
   const executor = opts.executor ?? new DryRunExecutor();
   const net = network();
   const reader = opts.auctions

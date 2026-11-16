@@ -156,3 +156,14 @@ From the approved design (decisions of 15 to 16 November 2026):
 - Documented one fail-safe gap rather than closing it: a crash between accepting a mandate's nonce and recording the mandate leaves no active mandate; the owner re-sends.
 
 **Human decisions in this step**: none new.
+
+### 2026-11-16: the live setup and the planner on OpenRouter (ninth pull request)
+
+**Human decisions in this step**: the owner funded the accounts, and provided an **OpenRouter** API key instead of an Anthropic key, asking for Claude Opus through OpenRouter's OpenAI-compatible API with structured output, low effort, capped tokens, the rule-based fallback kept, and no model call in CI or unit tests.
+
+**What the worker agent did**
+
+- Ran the live setup that needs no auction: ML-DSA-87 keys for the three accounts, the agent's ML-KEM key and recipient card, and the fUSD conversion (transaction hashes in `docs/spikes.md`); read the keys back from the chain.
+- Looked up the OpenRouter model id (`anthropic/claude-opus-5.5`) and its supported parameters from OpenRouter's public model list, and wrote the OpenRouter planner with plain `fetch` (no new dependency). The Anthropic-SDK planner stays for an Anthropic key.
+- Made the test runner force the rule-based planner (`PEAL_BIDDER_PLANNER=rules`), so no test can reach a paid model, and made the offline demo use the rules unless `--model` is given.
+- Spent one live request ($0.011) to check the request shape and record a real answer for the tests, instead of a second hand-written fixture.

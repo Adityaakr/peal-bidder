@@ -1,6 +1,7 @@
 /**
- * Live runs against claude-opus-5-5. Skipped unless ANTHROPIC_API_KEY is set,
- * so CI and offline runs spend nothing. Each run costs a few cents.
+ * Live runs against claude-opus-5-5. Skipped unless both ANTHROPIC_API_KEY and
+ * PEAL_BIDDER_LIVE=1 are set, so CI and ordinary test runs spend nothing.
+ * Each run costs a few cents.
  *
  * Whatever the model answers, the decision must stay inside the mandate; the
  * injection cases also check that the model did not follow the injected
@@ -12,7 +13,7 @@ import { RulePlanner, claudePlannerFromEnv, decide } from "../agent/planner/inde
 import { AUCTION_A, NOW, newAccount, newAgent, sampleMandate } from "./helpers.ts";
 import { auction } from "./auctions.ts";
 
-const claude = claudePlannerFromEnv();
+const claude = process.env.PEAL_BIDDER_LIVE === "1" ? claudePlannerFromEnv() : undefined;
 const owner = newAccount();
 const agent = newAgent();
 
