@@ -95,7 +95,7 @@ export type Product = "bidder" | "tender" | "auction";
 /** A Peal product mark: a ring with the product's sign inside, 26 x 26. */
 export function mark(product: Product = "bidder", size = 26): SVGSVGElement {
   const svg = s("svg", { viewBox: "0 0 26 26", width: size, height: size, class: "mark", "aria-hidden": "true" }) as SVGSVGElement;
-  const blue = "#2563eb";
+  const blue = "#0369a1";
   svg.append(s("circle", { cx: 13, cy: 13, r: 11, fill: "none", stroke: blue, "stroke-width": 2 }));
   if (product === "bidder") {
     svg.append(s("circle", { cx: 9, cy: 13, r: 2.6, fill: blue }));
@@ -164,7 +164,7 @@ export function kicker(text: string): HTMLElement {
 export function fingerprint(hex: string): HTMLElement {
   const box = h("div.fingerprint", { "aria-hidden": "true" });
   const b = hex.replace(/^0x/, "");
-  const shades = ["#eff6ff", "#dbeafe", "#bfdbfe", "#93c5fd", "#60a5fa", "#3b82f6", "#2563eb", "#1e40af"];
+  const shades = ["#e8f3fa", "#d3e8f5", "#b5d6ea", "#7dc0e6", "#38a3d8", "#0b84c2", "#0369a1", "#0c4a6e"];
   for (let i = 0; i < 16; i++) box.append(h("i", { style: `background:${shades[parseInt(b[i * 2] ?? "0", 16) % shades.length]}` }));
   return box;
 }

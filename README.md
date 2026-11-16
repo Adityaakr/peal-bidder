@@ -127,7 +127,7 @@ pnpm web:receipts   # publish the live agent's receipts log to the site (after a
 
 Three pages:
 
-- **Landing** (`#/`): what the Bidder is, the mechanism (a step rail synced to the drawing), the security evidence from the live run, and the Peal family. It follows the shared design rules in Peal Tender's `docs/design.md`.
+- **Landing** (`#/`): the agent on a leash. An operator console replays the live agent's receipts (a mandate accepted, Claude's plans kept inside it, bids landed, a forged mandate and an over-limit bid refused); the signed mandate is shown field by field with what enforces each line; a schematic of the four checks; the live run as a data table with blocks and hashes. Its look is the Bidder's own (IBM Plex, a console panel, red only for limits); the Peal family layer (wordmark, marks, footer, spacing and accessibility) follows Peal Tender's `docs/design.md`.
 - **The live agent** (`#/agent`): the owner's agent as its receipts tell it. Every line's chain and ML-DSA-87 signature is checked in the browser against the receipt key every mandate pins; each transaction hash is looked up on chain; the owner's key (`pqcKeyStatus`), spending rule and auctions are read live.
 - **Your agent** (`#/try`): a visitor makes a guest account (an owner and its agent, from one recovery phrase in the browser), writes a mandate within small limits (at most 20 fUSD), signs it with ML-DSA-87 and seals it with ML-KEM-1024. The agent, which is this repository's code running in the browser, opens it, checks the signature, plans with the rule-based planner, clamps, and seals a bid to the auction's real committee, then stops: nothing is sent yet. "Try to break it" forges, tampers with, replays, expires and misdirects mandates, and feeds the agent an injected plan; each is refused or clamped, with a signed receipt.
 
@@ -196,7 +196,7 @@ Two findings came out of the run: a token listed in the spending rule can also b
 
 The design comes from the author's own earlier project, **Peal** (private, started 6 July 2026, Apache-2.0). Everything in this repository was written during the fest. Rules ported from Peal, rewritten here:
 
-- The look of the web app: Peal's design language (colours, type, components, the landing-page structure), as restated in Peal Tender's `docs/design.md` (design report, section 7). The wallet drawer, guest account, QoreX and MetaMask modules and the Vercel proxy are adapted from Peal Tender's web app, each file saying so.
+- The web app's family layer (wordmark, marks, footer, spacing and accessibility rules) comes from Peal's design language as restated in Peal Tender's `docs/design.md` (design report, section 7); the Bidder's own look (the console, IBM Plex, the limit line) was drawn for this entry. The wallet drawer, guest account, QoreX and MetaMask modules and the Vercel proxy are adapted from Peal Tender's web app, each file saying so.
 - The auction price and escrow arithmetic in `agent/auction.ts` (`price(tick) = reservePrice + tick × tickSize`, escrow rounded up) follows Peal's `contracts/src/auctionkit/AuctionMath.sol`, so the agent computes the same escrow as the auction contract.
 
 ## Credits

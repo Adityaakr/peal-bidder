@@ -202,3 +202,29 @@ From the approved design (decisions of 15 to 16 November 2026):
 - Wrote a headless-Chromium smoke run (14 checks). It caught three real bugs before the PR: the element builder ignored `#id` (the dark band and every section anchor were silently missing), the header overflowed a 390px screen, and the forged-mandate scene tried to sign in the owner's name, which QoreSign refuses; it now forges the way the CLI demo does.
 
 **What is not done, stated plainly**: the visitor's agent does not bid on chain yet. It seals a real bid and stops. No Peal auction was open while this was built, and testing the on-chain path needs a funded guest account; both are named as the next step in the README roadmap.
+
+### 2026-11-16: the landing page, redesigned (fifteenth pull request)
+
+**Human decisions in this step**: the owner asked for the landing pages to be "premium and professional and not ai slop", then that the three products must not look the same: each gets its own identity, sharing only a small Peal family layer. The orchestrator relayed both, the revised shared rules (Peal Tender's `docs/design.md`, PR 9) and a starting direction for the Bidder: the agent on a leash, an operator console.
+
+**What the worker agent did**
+
+- Loaded its design, diagramming and data-visualisation guidance and wrote a concept before designing. The visitor is a judge or builder deciding whether an AI agent can be trusted with money. The page has to land one idea in five seconds: this agent spends, but only inside lines it cannot cross, and you can watch it.
+- Rebuilt the landing page around that idea:
+  - an operator console replaying the live agent's own receipts, with the budget meter drawn against a red limit;
+  - the headline's key phrase underlined by the same red limit line;
+  - the signed mandate shown field by field, with what enforces each line;
+  - the mechanism redrawn as a schematic where refusals are hard red stops;
+  - the live run as a data table with block heights and hashes;
+  - rule lists instead of rows of identical cards.
+- Moved the type to IBM Plex (condensed display, sans text, mono data) and the palette to one instrument grey, one cyan-blue accent and red reserved for limits, distinct from Tender's serif ledger. It removed the sky gradient, the blurred navigation bar and the icon cards.
+- Checked every hash and block height on the page against the chain before using it.
+- Iterated in headless Chromium at 1440, 1280, 768 and 390 px over three rounds, fixing each round's faults:
+  - a four-line headline;
+  - a schematic with floating labels;
+  - a run table whose result column hid off-screen on a phone;
+  - misaligned family rows;
+  - an em-dash in a table.
+- The smoke run (14 checks) passes.
+
+**Note**: the browser automation tool the brief names (chrome-devtools-axi) could not attach to a browser in this environment, so the screenshots and the smoke run use Playwright with the installed headless Chromium.
