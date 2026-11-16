@@ -11,6 +11,8 @@
  *   pnpm agent serve [--executor ...] [--interval 60] [--claim] [--max-ticks N]
  *                                           the long-running agent: inbox, one planning round and (with --claim)
  *                                           claims, every interval; stops cleanly on SIGINT/SIGTERM
+ *                                           --control-port 8789: the owner's pause and resume, by Sign In With
+ *                                           QoreChain, on 127.0.0.1 (agent/control.ts)
  *   pnpm agent bids [--path smart-account|window]       the agent's bids on the mandate's auctions, from the chain
  *   pnpm agent claim --executor smart-account|window    claim every unclaimed bid of a finished auction
  *   pnpm agent receipts                     verify the receipts log
@@ -36,6 +38,7 @@ import { auctionFactoryAbi } from "./auction-abi.ts";
 import { bidderFor, makeExecutor, type ExecutorKind } from "./executors.ts";
 import { auctionOutcome, claimAll } from "./claims.ts";
 import { auditReceipts } from "./audit.ts";
+import { OwnerControl, controlServer, readControlState } from "./control.ts";
 import { acquireLock } from "./lock.ts";
 import { connectQoreChainMcp } from "./qorechain-mcp.ts";
 import { drainInbox, serve } from "./serve.ts";
@@ -139,15 +142,40 @@ export async function run(): Promise<void> {
           receipts: new ReceiptLog(new FileSink(paths.receipts), id.receiptKey, id.account.cosmos),
         };
       }
+      const controlPort = typeof flags["control-port"] === "string" ? int(flags, "control-port") : undefined;
+      const control = new OwnerControl({
+        owner: id.account.owner,
+        agent: id.account.cosmos,
+        chainId: net.chainId,
+        domain: `127.0.0.1:${controlPort ?? 0}`,
+        keys: keySource(paths, offline),
+        statePath: paths.control,
+        receipts: new ReceiptLog(new FileSink(paths.receipts), id.receiptKey, id.account.cosmos),
+      });
+      const server = controlPort === undefined ? undefined : controlServer(control);
+      if (server && controlPort !== undefined) await new Promise<void>((resolve) => server.listen(controlPort, "127.0.0.1", resolve));
       const stop = new AbortController();
       process.once("SIGINT", () => stop.abort());
       process.once("SIGTERM", () => stop.abort());
-      console.log(JSON.stringify({ serving: id.account.cosmos, owner: id.account.owner, executor: kind, claims: Boolean(claims) }));
-      const ticks = await serve(
-        { agent, inbox: paths.inbox, ...(claims ? { claims } : {}), log: (l) => console.log(JSON.stringify(l)) },
-        { intervalSeconds: int(flags, "interval", 60), ...(typeof flags["max-ticks"] === "string" ? { maxTicks: int(flags, "max-ticks") } : {}), signal: stop.signal },
+      console.log(
+        JSON.stringify({
+          serving: id.account.cosmos,
+          owner: id.account.owner,
+          executor: kind,
+          claims: Boolean(claims),
+          paused: control.paused,
+          control: controlPort === undefined ? null : `http://127.0.0.1:${controlPort}/siwq`,
+        }),
       );
-      console.log(JSON.stringify({ stopped: true, ticks }));
+      try {
+        const ticks = await serve(
+          { agent, inbox: paths.inbox, ...(claims ? { claims } : {}), paused: () => control.paused, log: (l) => console.log(JSON.stringify(l)) },
+          { intervalSeconds: int(flags, "interval", 60), ...(typeof flags["max-ticks"] === "string" ? { maxTicks: int(flags, "max-ticks") } : {}), signal: stop.signal },
+        );
+        console.log(JSON.stringify({ stopped: true, ticks }));
+      } finally {
+        server?.close();
+      }
       return;
     }
     case "run": {
@@ -165,6 +193,9 @@ export async function run(): Promise<void> {
         ...(typeof flags.factory === "string" ? { factory: flags.factory } : {}),
         executor,
       });
+      if (readControlState(paths.control).paused) {
+        throw new Error("the owner has paused this agent (Sign In With QoreChain); it places no bid until the owner resumes it");
+      }
       const rounds = flags.once === true ? 1 : int(flags, "rounds", 1);
       const interval = int(flags, "interval", 30);
       const log = [];
@@ -236,7 +267,7 @@ export async function run(): Promise<void> {
     case "status": {
       const { agent, id } = buildAgent(paths);
       const s = agent.state;
-      out({ agent: id.account.cosmos, owner: id.account.owner, mandateHash: s.mandateHash ?? null, mandate: s.mandate ?? null, ledger: s.ledger });
+      out({ agent: id.account.cosmos, owner: id.account.owner, control: readControlState(paths.control), mandateHash: s.mandateHash ?? null, mandate: s.mandate ?? null, ledger: s.ledger });
       return;
     }
     case "receipts": {

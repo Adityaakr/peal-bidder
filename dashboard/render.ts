@@ -84,6 +84,13 @@ function summary(r: Receipt, txUrl: (h: string) => string): { tone: "ok" | "refu
         html: `Claim bid ${escapeHtml(String(field(d, "bidId")))} (${escapeHtml(String(field(d, "bidStatus")))}, ${escapeHtml(String(field(d, "allocation")))} won): <strong>${escapeHtml(status)}</strong>${link}`,
       };
     }
+    case "control": {
+      const action = String(field(d, "action"));
+      return {
+        tone: action === "pause" ? "refused" : "ok",
+        html: `The owner ${action === "pause" ? "<strong>paused</strong>" : "<strong>resumed</strong>"} the agent (Sign In With QoreChain, checked against the owner's ML-DSA-87 key on chain)`,
+      };
+    }
     default:
       return { tone: "info", html: escapeHtml(r.body.kind) };
   }

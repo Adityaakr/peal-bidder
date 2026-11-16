@@ -50,6 +50,8 @@ export function agentPaths(home = bidderHome()) {
     inbox: join(dir, "inbox"),
     receipts: join(dir, "receipts.jsonl"),
     nonces: join(dir, "nonces.json"),
+    /** Paused or not, by the owner's Sign In With QoreChain message (agent/control.ts). */
+    control: join(dir, "control.json"),
     /** Held by the one agent process allowed to write (agent/lock.ts). */
     lock: join(dir, "agent.lock"),
   };
