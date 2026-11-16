@@ -34,6 +34,7 @@ The split is the main defence against a compromised or misbehaving agent: the ke
 | A misbehaving or confused model | Propose junk or oversized bids | Same policy; malformed output falls back to the rule-based planner; a skip is always allowed |
 | Whoever controls the agent's machine | Spend beyond the mandate | Bounded by the chain: the spending rule (fUSD only (*fUSD limits untested*); at most `maxPerBid` per execution and the daily limit per UTC day; with call data, only `commitBid` on the mandate's auctions; a key expiry), the scoped window, the allowance. They cannot change those without the owner's keys: the agent's file holds the classical key only, and the agent refuses to start from a file holding a mnemonic |
 | Whoever controls the relayer | Relay the agent's message to another target, with other data or more gas | The agent's signature covers the target, value, data, its key's nonce and (digest v2) the gas limit, so any change fails on chain. The relayer can only withhold or delay a bid. It refuses, before paying gas, messages for another account, target or relayer, with native value or with oversized gas |
+| Anyone, or a thief of the owner's classical key | Pause a running agent (deny service) or resume one the owner paused | The control endpoint (`agent serve --control-port`) listens on 127.0.0.1 only and accepts only a Sign In With QoreChain message from the owner the agent serves: its own domain and chain id, a nonce it issued (single use, 10 minutes), a fresh `issuedAt`, the classical signature, and the ML-DSA-87 signature checked against the owner's key read from the chain, as for mandates. A classical-only sign-in is refused. A pause stops planning only; it moves no money, and the on-chain limits stay in force either way |
 | Anyone | Get the relayer to pay gas for junk | The same policy check: only `MsgExecuteEVM` for the owner's account to the configured auctions |
 | An auction issuer | Show the planner text other than what it published | The chain reader keeps the name and description from the factory's `AuctionCreated` event only if they hash to the auction's own `metadataHash`; every number comes from the auction's `config()` |
 | A lying REST endpoint | Make the agent seal to a key the committee member does not hold | The bid encoder checks each member with qore-pq-kit's `verifyMember`: the ML-DSA key from the chain by `eth_call`, the ML-KEM key against the hash the member signed into the registry, the card against its hash and both keys. Tested with a REST endpoint serving a substituted key |
@@ -45,6 +46,7 @@ The split is the main defence against a compromised or misbehaving agent: the ke
 
 - The owner's key cannot be read (no key, another algorithm, possession not proven, wrong length, empty data, RPC error): refuse.
 - The receipts log does not verify: the agent will not start.
+- The owner's pause cannot be read back (`agent/control.json` unreadable): the agent stays paused. The owner's key cannot be read when a pause or resume arrives: it is refused, and nothing changes.
 - The nonce store is unreadable: the agent stops rather than resetting nonces.
 - The executor cannot tell whether a bid landed: the bid counts as spent. A `submission` receipt is written before anything is sent; if the agent stops before the result is recorded, the next start counts the bid as spent and writes an `unknown` result saying so.
 - Untrusted text is bounded: the issuer's name and description to 200 and 4,000 characters in the prompt, planner output to 8,000 characters in a receipt, and an envelope to 256 KB before it is decoded.
@@ -74,11 +76,25 @@ The split is the main defence against a compromised or misbehaving agent: the ke
 - **The demo script reads both folders.** `pnpm demo:testnet` plays owner, agent and relayer on one machine; its scene 3b relayer is told to allow an fUSD target so that the chain, not the relayer, is what refuses. That is a demonstration setting, never the relayer's default.
 - **Offline mode trusts files.** `--offline` checks the owner's signature against `agent/owner-public.json` and seals to `agent/public.json` with nothing on chain vouching for either. It is for local runs only, and both commands say so in their output.
 - **The mandate is advisory to the chain.** The chain does not read the mandate; the agent does. A compromised agent can ignore its mandate; it cannot ignore the chain's limits. Choose the chain-side limits as the real budget.
-- **Receipts prove what the agent says it did,** not what happened on chain. Each receipt carries the transaction hash, so the chain's own record can be checked against it. A compromised agent holding the receipt key can write false receipts going forward.
+- **Receipts prove what the agent says it did,** not what happened on chain. Each receipt carries the transaction hash, so the chain's own record can be checked against it, and `pnpm agent audit` does that check (through the QoreChain MCP server: each transaction's outcome, its hybrid ML-DSA-87 layer verified against the signer's key, its signer). A compromised agent holding the receipt key can write false receipts going forward; the audit catches a false outcome or a foreign signer, but not a bid it never recorded, which only the owner's own view of the chain (the dashboard, `owner status`, the spending rule's daily counter) shows.
 - **A new mandate starts a fresh budget.** The owner issuing a new mandate is a decision to allow more; the chain's daily limit still applies across mandates.
 - **Model quality.** The model may bid badly inside the limits. The limits bound the damage; they do not guarantee a good price.
 - **QoreSeal 0.1.0 is a draft** pending external review, and pins QoreSign 0.1.0 while this repository uses 0.2.0 for signatures.
 - **Demo setup.** In the fest demo the owner runs the agent, the relayer and all three auction committee keys (design decision D3), disclosed as demo-only.
+
+## Cryptographic inventory
+
+What is post-quantum here and what is not, from a QoreScan scan of the deployment the Bidder depends on: the testnet, its three accounts, and the three public endpoints. Run with `pnpm cbom`; the CBOM and its summary are in [docs/cbom/](docs/cbom/README.md), and `test/cbom.test.ts` holds this section to them.
+
+| Asset | Cryptography | Post-quantum? | What it means for the Bidder |
+|---|---|---|---|
+| The owner's, agent account's and relayer's authority | hybrid secp256k1 + ML-DSA-87 (all three keys registered, hybrid) | yes: both signatures are required, and the chain allows no classical fallback | Mandates, the spending rule, windows and every relayed bid need the ML-DSA-87 half |
+| The agent's envelope key | ML-KEM-1024 + X25519 (QoreSeal), registered in the chain's KEM registry | yes | A recorded mandate stays sealed against a future quantum attacker |
+| The receipts | ML-DSA-87 (qorechain-pqc) | yes | |
+| TLS to `evm-testnet`, `api-testnet`, `rpc-testnet` | key exchange X25519MLKEM768 (hybrid); certificates ECDSA P-256 and P-384 | **key exchange only** | Recorded traffic stays confidential against a future quantum attacker. A quantum attacker who can forge the certificates could still impersonate an endpoint to the agent; see below |
+| The chain's consensus | Ed25519 validator keys (4 at the scan) | **no** | A light client cannot check the chain post-quantum yet; the PQ light client kit needs checkpoints the chain does not produce ([docs/kits.md](docs/kits.md)) |
+
+**An impersonated endpoint** (a quantum attacker forging an ECDSA certificate, or anyone controlling the agent's network or DNS) can lie to the agent. It could serve a fake ML-DSA-87 key for the owner, so that a forged mandate verifies, or fake auctions. It cannot spend beyond the chain's limits: the spending rule, the allowance and the linked key's expiry are enforced by the validators, not by what the endpoint says. Mitigations: keep the chain-side limits as the real budget (as above); run the agent against your own node when it matters; and check the agent against the chain from another vantage point (`pnpm agent audit` from the owner's machine, the dashboard).
 
 ## The web app (`apps/web`, hosted on Vercel)
 
