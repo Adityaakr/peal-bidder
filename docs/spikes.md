@@ -152,9 +152,9 @@ Read-only. The fest's project page marks each ticked kit and network feature VER
 
 What the Bidder does with this is in [kits.md](kits.md).
 
-### 2026-11-17 (UTC): the agent's audit through the QoreChain MCP server
+### 2026-11-16 (UTC): the agent's audit through the QoreChain MCP server
 
-Run: `pnpm agent audit --published --signers qor16tsewlj6jpt4v2esmrhuk7z2xems6e09z5rpzc,qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur`, the QoreChain MCP server 0.1.1 in process, read-only.
+Run: `pnpm agent audit --published --signers qor16tsewlj6jpt4v2esmrhuk7z2xems6e09z5rpzc,qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur`, the QoreChain MCP server 0.1.1 in process, read-only, about 21:00 UTC.
 
 - All 21 published receipts verify; they name 8 transactions (4 bids, 2 refused bids, 3 claims; one of each scene that sent something). For each, `get_transaction` agrees with the recorded outcome, the signer is the relayer, and `get_pq_status` verifies the hybrid ML-DSA-87 layer against the relayer's registered key with sign-bytes v2. The owner's key reads registered, ML-DSA-87, possession proven. The agent's own log (`pnpm agent audit` on the agent folder) gives the same result.
 - **`get_transaction` decodes a linked-key refusal.** A refused `MsgExecuteEVM` is a code-0 transaction; the tool reports `success: false` and puts the chain's reason in `execution_failures[].reason` (for example "daily limit … exceeded: spent 201000000, remaining 0"), and adds that the nonce is consumed. So the audit needs no decoding of its own.
