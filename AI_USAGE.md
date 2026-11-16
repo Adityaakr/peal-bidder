@@ -187,3 +187,18 @@ From the approved design (decisions of 15 to 16 November 2026):
 **Human decisions in this step**: the owner asked that the finding be tightened if the chain allows, and otherwise stated plainly. A second demo auction was opened for the test.
 
 **What the worker agent did**: tried the most promising tightening live (leaving fUSD out of the rule). The chain then refused the plain transfer, but also the bid, with a reason that settles it. The agent restored the listed rule, recorded that the day's spend counter survives rule updates (found when the restored rule refused a bid), and wrote the residual bound and mitigations into the threat model. It removed the temporary rule option from the code rather than ship an option the chain makes useless for bidding.
+
+### 2026-11-16: the web app (thirteenth pull request)
+
+**Human decisions in this step**: the owner asked for wallet connect so the public can try all three Peal products, one shared design language and a landing page in each, hosted on Vercel's free tier, and asked for the landing pages to be designed "better and deeply". The owner chose the wallet paths: a guest account made in the visitor's browser and funded by the visitor from the faucet, plus QoreX and MetaMask. This replaces design decision D8 (no public try-it). The orchestrator added the limits: small mandates only, the owner's OpenRouter key never public (rule-based planner for visitors, or a strictly capped server-side planner), no new contract deploys, no Vercel account made by an agent.
+
+**What the worker agent did**
+
+- Read Peal Tender's shipped web app (its wallet modules, Vercel proxy and `docs/design.md`) and the deeper landing-page rules that the Tender worker landed while this was being built (relayed by the orchestrator through three steering messages), and Peal's own landing page, read-only, for the look.
+- Built `apps/web`: a landing page to those rules (hero with three real receipts, a proof bar computed from the live receipts, a step rail synced to a hand-drawn mechanism with a separate phone drawing, the security evidence on the dark band, roles, try it, the Peal family), a live-agent page, and a playground. The wallet drawer, guest account, QoreX and MetaMask modules are adapted from Peal Tender, each file saying so; nothing was shared through qore-pq-kit, because the code is page code, not toolkit code.
+- Chose the rule-based planner for visitors, in the browser, so there is no server endpoint and nothing that could spend the owner's OpenRouter credit.
+- Made the agent's own code run in the browser rather than writing a demo version: moved the receipts file sink and `decide` into their own files so the browser can import `receipts.ts`, the planner and `agent.ts` without Node modules. Every existing test stayed green.
+- Published the live agent's receipts log to the site with a script that checks it first, and added a test that only public material is published.
+- Wrote a headless-Chromium smoke run (14 checks). It caught three real bugs before the PR: the element builder ignored `#id` (the dark band and every section anchor were silently missing), the header overflowed a 390px screen, and the forged-mandate scene tried to sign in the owner's name, which QoreSign refuses; it now forges the way the CLI demo does.
+
+**What is not done, stated plainly**: the visitor's agent does not bid on chain yet. It seals a real bid and stops. No Peal auction was open while this was built, and testing the on-chain path needs a funded guest account; both are named as the next step in the README roadmap.

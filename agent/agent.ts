@@ -10,7 +10,8 @@ import type { CanonicalValue } from "../common/canonical.ts";
 import { decodeMandate, mandateHash, type PealMandateV1 } from "../common/mandate.ts";
 import type { AuctionView } from "./auction.ts";
 import { receiveMandate, type AcceptedMandate, type InboxDeps, type MandateRefusal } from "./inbox.ts";
-import { decide, type Planner, type PlanResult } from "./planner/index.ts";
+import { decide, type PlanResult } from "./planner/decide.ts";
+import type { Planner } from "./planner/types.ts";
 import { EMPTY_LEDGER, recordBid, remainingCap, type Decision, type Ledger } from "./policy.ts";
 import type { Receipt, ReceiptLog } from "./receipts.ts";
 

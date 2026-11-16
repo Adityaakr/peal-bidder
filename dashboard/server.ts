@@ -13,7 +13,8 @@ import { hexToBytes } from "@noble/hashes/utils.js";
 import { int, main, out, parseFlags } from "../common/cli.ts";
 import { agentPaths, bidderHome } from "../common/home.ts";
 import { readAgentPublicInfo } from "../agent/identity.ts";
-import { FileSink, verifyReceipts } from "../agent/receipts.ts";
+import { verifyReceipts } from "../agent/receipts.ts";
+import { FileSink } from "../agent/receipt-file.ts";
 import { renderDashboard, txUrlFor } from "./render.ts";
 
 async function run(): Promise<void> {

@@ -18,24 +18,33 @@
     "relayer": "tsx relayer/server.ts",
     "dashboard": "tsx dashboard/server.ts",
     "demo:testnet": "tsx scripts/demo-testnet.ts",
-    "record:openrouter": "tsx scripts/record-openrouter.ts"
+    "record:openrouter": "tsx scripts/record-openrouter.ts",
+    "web": "vite --config apps/web/vite.config.ts",
+    "web:build": "vite build --config apps/web/vite.config.ts",
+    "web:preview": "vite preview --config apps/web/vite.config.ts",
+    "web:receipts": "tsx scripts/publish-receipts.ts",
+    "web:smoke": "tsx scripts/web-smoke.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0",
+    "@cosmjs/stargate": "0.39.0",
     "@noble/hashes": "2.4.0",
     "@qorechain/evm": "0.14.0",
     "@qorechain/qoreseal": "0.1.0",
     "@qorechain/qoresign": "0.2.0",
     "@qorechain/sdk": "0.14.0",
     "@scure/bip39": "2.4.0",
+    "cosmjs-types": "0.11.0",
     "qore-pq-kit": "github:Adityaakr/qore-pq-kit#v0.4.0",
     "viem": "2.57.20"
   },
   "devDependencies": {
     "@types/node": "22.18.0",
     "fast-check": "4.10.2",
+    "playwright-core": "1.56.1",
     "tsx": "4.20.6",
     "typescript": "5.9.3",
+    "vite": "8.3.5",
     "vitest": "5.0.5"
   },
   "packageManager": "pnpm@10.30.2"

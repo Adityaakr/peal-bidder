@@ -79,3 +79,23 @@ The split is the main defence against a compromised or misbehaving agent: the ke
 - **Model quality.** The model may bid badly inside the limits. The limits bound the damage; they do not guarantee a good price.
 - **QoreSeal 0.1.0 is a draft** pending external review, and pins QoreSign 0.1.0 while this repository uses 0.2.0 for signatures.
 - **Demo setup.** In the fest demo the owner runs the agent, the relayer and all three auction committee keys (design decision D3), disclosed as demo-only.
+
+## The web app (`apps/web`, hosted on Vercel)
+
+Added 16 November 2026, when the owner chose a public site with wallet connect for all three Peal entries.
+
+**What it holds.** No key of the live agent or its owner, and no planner key. The live agent's page reads a published copy of the receipts log (`apps/web/public/live/`, written by `pnpm web:receipts`): mandate text, planner output, decisions and transaction hashes, all public by design, plus the receipt key's public half. A test checks that nothing else is in it.
+
+**What a visitor's browser holds.** A guest account: a 24-word phrase from the browser's random source, in `localStorage`, giving a testnet owner (account 0) and its agent (account 1, plus seeds for the agent's QoreSeal and receipt keys derived from account 1's key). The page says it is testnet-only, offers a backup and can forget it. Anything that can run script in the page's origin can read it; the page loads scripts from its own origin only (CSP `script-src 'self'`), sets every untrusted string with `textContent`, and frames are refused.
+
+**The OpenRouter key never reaches the browser.** The public planner is the rule-based one, running in the visitor's browser. There is no server-side planner endpoint, so there is nothing to rate-limit or abuse. The only text the public planner reads from the owner's instructions is one word of style (cautious, fair, eager), which can move the tick only within the mandate; the policy clamps whatever it proposes.
+
+**The proxy.** QoreChain's REST API and CometBFT RPC send no CORS headers, so `vercel.json` rewrites `/api/qore/rest/*` and `/api/qore/rpc/*` to the two public testnet endpoints, and nothing else. It holds no key and adds no authority; anyone can call those endpoints directly. A malicious host could lie about REST answers: the agent's committee check (`verifyMember`) does not trust REST for keys, and the owner's key comes from `pqcKeyStatus` over the EVM RPC, which the browser calls directly.
+
+**What the guest agent checks, and what it does not.**
+- It runs the repository's own `receiveMandate`, policy, planner, receipts and bid encoder. Its owner's key is read from the chain once the visitor has registered it; until then the visitor may choose "in this browser", a rehearsal the page labels as such, in which nothing on chain vouches for the key.
+- The mandate is sealed to the agent's locally derived ML-KEM key, not to a key registered on chain: owner and agent share one browser, so there is nothing to look up. The live agent's owner seals to the registered key.
+- It sends nothing. When no Peal auction is open (the case at the time of writing), it rehearses on the last demo auction, read from the chain and treated as open. Sealing the bid uses the auction's real committee keys, each checked against the chain.
+- A visitor's mandate is capped by the page at 20 fUSD, 10 per bid, 3 bids and 24 hours. These are page limits, not chain limits: the on-chain path (a spending rule on the guest owner's account) is the next step and will carry the same caps into the rule.
+
+**Testnet funds.** Guest accounts are funded by visitors from the QoreChain faucet or from their own QoreX wallet, never from the project's accounts.

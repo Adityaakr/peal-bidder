@@ -11,9 +11,6 @@
  * edited line is detected. The log proves what the agent says it did; the
  * chain's own records (transaction hashes in the receipts) prove what happened.
  */
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
-import { dirname } from "node:path";
-import { randomBytes } from "node:crypto";
 import { sha3_256 } from "@noble/hashes/sha3.js";
 import { bytesToHex, hexToBytes, utf8ToBytes } from "@noble/hashes/utils.js";
 import { pqKeyFromSeed, pqSign, pqVerify } from "@qorechain/qoresign";
@@ -27,7 +24,7 @@ export interface ReceiptKey {
   secretKey: Uint8Array;
 }
 
-export function generateReceiptKey(seed: Uint8Array = randomBytes(32)): ReceiptKey {
+export function generateReceiptKey(seed: Uint8Array = globalThis.crypto.getRandomValues(new Uint8Array(32))): ReceiptKey {
   const k = pqKeyFromSeed(seed);
   return { publicKey: k.publicKey, secretKey: k.secretKey };
 }
@@ -65,7 +62,7 @@ export function receiptHash(body: ReceiptBody): string {
   return bytesToHex(sha3_256(utf8ToBytes(canonicalize(body))));
 }
 
-/** Where receipt lines go: a file (one JSON object per line) or memory. */
+/** Where receipt lines go: a file (`receipt-file.ts`, Node only), memory, or a browser's storage. */
 export interface ReceiptSink {
   read(): string[];
   append(line: string): void;
@@ -78,22 +75,6 @@ export class MemorySink implements ReceiptSink {
   }
   append(line: string): void {
     this.lines.push(line);
-  }
-}
-
-export class FileSink implements ReceiptSink {
-  constructor(private readonly path: string) {}
-  read(): string[] {
-    try {
-      return readFileSync(this.path, "utf8").split("\n").filter((l) => l.length > 0);
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
-      throw err;
-    }
-  }
-  append(line: string): void {
-    mkdirSync(dirname(this.path), { recursive: true, mode: 0o700 });
-    appendFileSync(this.path, `${line}\n`, { mode: 0o600 });
   }
 }
 
