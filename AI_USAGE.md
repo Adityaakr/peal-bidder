@@ -228,3 +228,26 @@ From the approved design (decisions of 15 to 16 November 2026):
 - The smoke run (14 checks) passes.
 
 **Note**: the browser automation tool the brief names (chrome-devtools-axi) could not attach to a browser in this environment, so the screenshots and the smoke run use Playwright with the installed headless Chromium.
+
+### 2026-11-16: diagrams as the backbone, and the family guide (sixteenth pull request)
+
+**Human decisions in this step**: the owner approved the distinct-identity direction and asked for meaningful changes, with diagrams that make the product easy to understand and a landing page that covers everything a judge needs. The Peal family guide was cut down to the shared layer only (Peal Tender PR 10).
+
+**What the worker agent did**
+
+- Drew four diagrams, each answering one question a visitor has:
+  - why not just give an agent a wallet: the same flow drawn twice;
+  - who holds which key, and what a thief of each machine gets;
+  - one bid message by message: a sequence across Owner, Agent, Claude, Relayer, QoreChain and the auction;
+  - where each attack stops: a track per attacker across the four layers, each with its proof.
+- Reordered the page into the order a judge asks: what it is, whether it is live, the problem, the keys, the mandate, how a bid happens, the attacks and the live run, then the category's requirements, how to try it and the family.
+- Added a table of the category's four main requirements (scoped EVM window; transaction, value, duration and target limits; smart-account spending rules; authenticated messaging). Each row names the code and tests and a transaction, and the agent checked those transactions on chain first, including the window open and close and the agent's ML-KEM key registration.
+- Removed the earlier four-checks schematic, which the sequence diagram and the hot-wallet comparison now cover, and the roles section.
+- Applied the family guide: a family line in the footer with each product's mark and the current one marked, the credit line "Design language started from Peal", sibling marks drawn in plain ink, and the Bidder's identity written down in `apps/web/DESIGN.md`.
+- Reviewed screenshots at 1440, 1280, 768 and 390 px over three rounds and fixed what they showed:
+  - a cropped sequence diagram, now full width;
+  - a clipped label and a self-message cut off at the right edge;
+  - a non-refusal coloured as a refusal;
+  - panels too small to read on a phone, now in their own scroller;
+  - attack tracks without layer names on narrow screens;
+  - stray cell borders in the phone run table.

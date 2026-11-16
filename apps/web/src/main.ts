@@ -81,8 +81,16 @@ function footer(): HTMLElement {
         col("Hackathon", ["How AI built this", `${REPO}/blob/main/AI_USAGE.md`], ["Peal Sealed Auction", "https://github.com/Adityaakr/peal-sealed-auction"], ["Peal Tender", "https://github.com/Adityaakr/peal-tender"]),
       ),
       h(
+        "div.foot-family",
+        { "aria-label": "The Peal family" },
+        h("span.foot-family-title", "The Peal family"),
+        h("a", { href: "https://github.com/Adityaakr/peal-tender", target: "_blank", rel: "noopener" }, mark("tender", 18), h("span", h("strong", "Peal Tender"), ": the treasury")),
+        h("a", { href: "https://github.com/Adityaakr/peal-sealed-auction", target: "_blank", rel: "noopener" }, mark("auction", 18), h("span", h("strong", "Peal Sealed Auction"), ": the venue")),
+        h("a.is-current", { href: REPO, target: "_blank", rel: "noopener", "aria-current": "true" }, mark("bidder", 18), h("span", h("strong", "Peal Bidder"), ": the participant"), h("span.foot-here", "this site")),
+      ),
+      h(
         "div.foot-base",
-        h("span", "Apache-2.0. Design language from Peal. Testnet only: qorechain-diana."),
+        h("span", "Apache-2.0. Design language started from Peal. Testnet only: qorechain-diana."),
         h("span", "Keys you make here stay in this browser; the live agent's owner signs in the CLI."),
       ),
     ),

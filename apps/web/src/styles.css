@@ -3261,3 +3261,610 @@ body.wallet-open .wallet-scrim {
     padding-left: 12px;
   }
 }
+
+/* the footer's family line (shared across the Peal entries) */
+
+.foot-family {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 28px;
+  margin-top: 40px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 14px;
+}
+
+.foot-family-title {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.foot-family a {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-2);
+}
+
+.foot-family strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.foot-here {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--accent);
+  border: 1px solid var(--accent-border);
+  border-radius: 999px;
+  padding: 0 8px;
+}
+
+.foot-family + .foot-base {
+  margin-top: 20px;
+}
+
+/* ================================================================ the explanatory diagrams */
+
+.diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.sub-title {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 56px 0 16px;
+}
+
+/* 1. the problem: the same flow, twice */
+
+.problem {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+
+.problem-panel {
+  margin: 0;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 18px 20px 8px;
+  min-width: 0;
+}
+
+.problem-panel figcaption {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 12px;
+}
+
+.problem-panel.is-hot {
+  border-top: 3px solid var(--red);
+}
+
+.problem-panel.is-peal {
+  border-top: 3px solid var(--accent);
+}
+
+/* 2. who holds which key */
+
+.keymap {
+  margin: 0;
+}
+
+.key-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) 44px minmax(0, 1.3fr) 44px minmax(0, 0.9fr) 44px minmax(0, 1.2fr);
+  align-items: stretch;
+}
+
+.key-col {
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  padding: 16px;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  min-width: 0;
+}
+
+.key-head {
+  display: grid;
+  gap: 2px;
+}
+
+.key-head strong {
+  font-family: var(--title);
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.key-head span {
+  font-family: var(--mono);
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.key-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.key {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 10px;
+}
+
+.key-glyph {
+  width: 12px;
+  height: 12px;
+  margin-top: 4px;
+  border-radius: 50%;
+  border: 2px solid var(--muted);
+}
+
+.key.is-pq .key-glyph {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+
+.key.is-public .key-glyph {
+  border-style: dashed;
+  border-color: var(--text-2);
+}
+
+.key.is-rule .key-glyph {
+  border-radius: 2px;
+  border-color: var(--red);
+}
+
+.key-body {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.key-name {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.key-name code {
+  font-family: var(--mono);
+  font-weight: 400;
+  font-size: 11.5px;
+  color: var(--accent-800);
+  overflow-wrap: anywhere;
+}
+
+.key-does {
+  font-size: 13.5px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.key-note {
+  font-size: 13px;
+  color: var(--text-2);
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.key-note strong {
+  color: var(--red-text);
+}
+
+.key-arrow {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.key-arrow i {
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  top: 50%;
+  height: 1.5px;
+  background: var(--text);
+}
+
+.key-arrow i::after {
+  content: "";
+  position: absolute;
+  right: -1px;
+  top: -4px;
+  border-left: 7px solid var(--text);
+  border-top: 4.5px solid transparent;
+  border-bottom: 4.5px solid transparent;
+}
+
+.key-arrow span {
+  position: absolute;
+  top: calc(50% - 30px);
+  font-family: var(--mono);
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--muted);
+  text-align: center;
+  width: 64px;
+}
+
+/* 3. the sequence diagram */
+
+.seq-art {
+  overflow-x: auto;
+  padding: 16px;
+}
+
+.seq {
+  min-width: 760px;
+}
+
+.seq [data-step] {
+  transition: opacity 200ms var(--ease-out);
+}
+
+.seq.is-focused [data-step]:not(.is-on) {
+  opacity: 0.18;
+}
+
+/* 4. the attack map */
+
+.atk {
+  border-top: 1px solid var(--border-strong);
+}
+
+.atk-row {
+  display: grid;
+  grid-template-columns: minmax(0, 4fr) minmax(0, 5fr) minmax(0, 4fr);
+  gap: 24px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.atk-head {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 10px 0;
+}
+
+.atk-who {
+  font-weight: 500;
+  font-size: 15px;
+}
+
+.atk-track {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: center;
+}
+
+.atk-head .atk-track {
+  gap: 0;
+}
+
+.atk-layer {
+  font-family: var(--mono);
+  font-size: 11px;
+  text-align: center;
+}
+
+.atk-cell {
+  position: relative;
+  height: 22px;
+}
+
+.atk-cell::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+}
+
+.atk-cell.is-passed::before {
+  background: var(--text);
+}
+
+.atk-cell.is-never::before {
+  background: repeating-linear-gradient(90deg, var(--border-strong) 0 4px, transparent 4px 8px);
+}
+
+.atk-cell.is-stop::before {
+  background: var(--text);
+  right: 50%;
+}
+
+.atk-cell.is-stop::after {
+  content: "";
+  position: absolute;
+  left: calc(50% - 1.5px);
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--red);
+}
+
+.atk-cell.is-bounded::before {
+  background: var(--text);
+}
+
+.atk-cell.is-bounded::after {
+  content: "";
+  position: absolute;
+  left: 30%;
+  right: 30%;
+  top: 2px;
+  bottom: 2px;
+  border: 2px solid var(--red);
+  border-radius: 3px;
+}
+
+.atk-out {
+  display: grid;
+  gap: 2px;
+}
+
+.atk-result {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: var(--red-text);
+}
+
+.atk-result.is-bounded {
+  color: var(--amber-text);
+}
+
+.atk-proof {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.atk-note {
+  margin-top: 16px;
+  font-size: 14px;
+  color: var(--text-2);
+  max-width: 64em;
+}
+
+/* the requirements table */
+
+.req-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.req {
+  width: 100%;
+  min-width: 860px;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.req th,
+.req td {
+  text-align: left;
+  vertical-align: top;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.req thead th {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--surface-2);
+}
+
+.req tbody th {
+  font-weight: 600;
+  width: 18%;
+}
+
+.req td {
+  color: var(--text-2);
+}
+
+.req tr:last-child th,
+.req tr:last-child td {
+  border-bottom: none;
+}
+
+.req code {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text);
+}
+
+.req-code {
+  width: 22%;
+}
+
+.req-chain {
+  width: 24%;
+}
+
+.req-tx {
+  display: block;
+  font-size: 12.5px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 900px) {
+  .problem {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .key-cols {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .key-arrow {
+    height: 44px;
+  }
+  .key-arrow i {
+    left: 50%;
+    right: auto;
+    top: 6px;
+    bottom: 6px;
+    width: 1.5px;
+    height: auto;
+  }
+  .key-arrow i::after {
+    right: auto;
+    top: auto;
+    bottom: -1px;
+    left: -4px;
+    border-left: 4.5px solid transparent;
+    border-right: 4.5px solid transparent;
+    border-top: 7px solid var(--text);
+    border-bottom: 0;
+  }
+  .key-arrow span {
+    top: auto;
+    left: calc(50% + 12px);
+    width: auto;
+    text-align: left;
+  }
+  .atk-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px 16px;
+  }
+  .atk-who {
+    grid-column: 1 / -1;
+  }
+  .atk-head .atk-track {
+    grid-column: 1;
+  }
+  .atk-head > span:first-child,
+  .atk-head > span:last-child {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .atk-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .atk-head {
+    display: none;
+  }
+  .atk-track {
+    position: relative;
+  }
+  .problem-panel {
+    padding: 14px 12px 4px;
+  }
+}
+
+.atk-result.is-clamped {
+  color: var(--accent-800);
+}
+
+/* how it works: four steps in a row, the sequence full width below */
+
+#how-it-works .rail-grid {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 24px;
+}
+
+#how-it-works .rail {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#how-it-works .rail-step {
+  height: 100%;
+  align-content: start;
+  border-left-width: 1px;
+  border-top: 3px solid transparent;
+  padding: 14px 16px;
+}
+
+#how-it-works .rail-step:hover,
+#how-it-works .rail-step[aria-current="step"] {
+  border-left-color: var(--border);
+  border-top-color: var(--accent);
+}
+
+#how-it-works .rail-art {
+  position: static;
+}
+
+#how-it-works .seq {
+  min-width: 720px;
+}
+
+.key-name code {
+  display: block;
+}
+
+@media (max-width: 900px) {
+  #how-it-works .rail {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  #how-it-works .rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 560px) {
+  #security .run-table td {
+    border-bottom: none;
+  }
+  #security .run-table tr {
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.atk-at {
+  display: none;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+@media (max-width: 560px) {
+  .atk-at {
+    display: block;
+  }
+  .problem-scroll {
+    overflow-x: auto;
+  }
+  .problem-scroll .diagram {
+    min-width: 470px;
+  }
+}
+
+@media (max-width: 900px) {
+  .atk-at {
+    display: block;
+  }
+}

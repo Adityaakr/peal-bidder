@@ -9,7 +9,7 @@
  * from the chain, or is labelled with where it comes from.
  */
 import { AUCTION_REPO, KIT, REPO, TENDER } from "../config.ts";
-import { mechanismTall, mechanismWide } from "../art/mechanism.ts";
+import { attackMap, keyMap, problemPanels, sequence } from "../art/diagrams.ts";
 import { spendingRules } from "../chain.ts";
 import { loadLive, type LiveLog } from "../live.ts";
 import { amount, h, icon, mark, onceVisible, type Child } from "../ui.ts";
@@ -254,11 +254,10 @@ const STEPS: { n: string; title: string; body: Child[] }[] = [
 ];
 
 function howItWorks(): HTMLElement {
-  const wide = mechanismWide();
-  const tall = mechanismTall();
-  const art = h("div.rail-art", wide, tall);
+  const seq = sequence();
+  const art = h("div.rail-art.seq-art", { tabindex: "0", role: "region", "aria-label": "One bid, message by message" }, seq);
   const setStep = (n: string | undefined) => {
-    for (const svg of [wide, tall]) {
+    for (const svg of [seq]) {
       svg.classList.toggle("is-focused", Boolean(n));
       svg.querySelectorAll<SVGElement>("[data-step]").forEach((g) => g.classList.toggle("is-on", g.dataset.step === n || (n === "4" && g.dataset.step === "5")));
     }
@@ -295,8 +294,8 @@ function howItWorks(): HTMLElement {
       "div.wrap",
       h(
         "div.section-head.split",
-        h("div", label("How it works"), h("h2.section-title", "Four checks between a mandate and a bid.")),
-        h("p.lead", "Each layer checks what the one before it let through. A mistake by the owner, a fooled model or a compromised agent machine still has to get past the layers after it."),
+        h("div", label("How it works"), h("h2.section-title", "One bid, message by message.")),
+        h("p.lead", "Four steps from a signed mandate to a sealed bid. Choose a step to see its messages. Each layer checks what the one before it let through."),
       ),
       h("div.rail-grid", rail, art),
     ),
@@ -349,67 +348,110 @@ function runTable(): HTMLElement {
 }
 
 function security(): HTMLElement {
-  const rows: [string, string, string][] = [
-    ["Instructions sent in the owner's name", "Acted on", "Refused unless signed with the owner's ML-DSA-87 key, as registered on chain"],
-    ["Auction text says “ignore your limits”", "May be obeyed", "Read as data; the policy clamps any proposal to the mandate"],
-    ["The agent's key is stolen", "The wallet is emptied", "Bounded by the spending rule: fUSD only, 100 a bid, the day's limit, two functions"],
-    ["A quantum computer recovers a classical key", "It signs as the owner", "Mandates and rule changes also need the ML-DSA-87 signature"],
-    ["Afterwards: what did it do?", "Logs, taken on trust", "Receipts signed with ML-DSA-87, hash-chained, with transaction hashes"],
-  ];
   return h(
     "section.section#security",
     h(
       "div.wrap",
       h(
         "div.section-head.split",
-        h("div", label("Security"), h("h2.section-title", "What a fooled or stolen agent can still do.")),
-        h("p.lead", "Give an AI agent a key and anyone who can talk to it, or steal it, can spend with it. Here the limits sit where neither the model nor the agent's machine can move them: in the owner's post-quantum signature, and in the chain. This is the live run."),
+        h("div", label("Why it is safe"), h("h2.section-title", "Where each attack stops.")),
+        h("p.lead", "Each row is an attacker and the first layer that stops them. Five are refused outright. A stolen agent key is the one that gets through, and only inside the rule."),
       ),
-      runTable(),
+      attackMap(),
       h(
-        "div.cmp",
-        h("h3.cmp-title", "Compared with an agent that holds a hot wallet"),
-        h(
-          "div.cmp-table",
-          { role: "table", "aria-label": "An agent with a hot wallet compared with Peal Bidder" },
-          h("div.cmp-row.cmp-headrow", { role: "row" }, h("span", { role: "columnheader" }, "If"), h("span", { role: "columnheader" }, "Hot wallet"), h("span", { role: "columnheader" }, "Peal Bidder")),
-          ...rows.map(([what, a, b]) =>
-            h(
-              "div.cmp-row",
-              { role: "row" },
-              h("span.cmp-what", { role: "rowheader" }, what),
-              h("span.cmp-no", { role: "cell" }, icon("cross"), a),
-              h("span.cmp-yes", { role: "cell" }, icon("check"), b),
-            ),
-          ),
-        ),
-        h(
-          "p.cmp-note",
-          h("strong", "Not hidden. "),
-          "A stolen agent key can still move fUSD inside those limits: the chain counts the auction's escrow pull as a transfer, so a rule that allows bidding must list fUSD. Tested live, with the residual bound and the mitigations in the ",
-          h("a", { href: `${REPO}/blob/main/THREAT_MODEL.md`, target: "_blank", rel: "noopener" }, "threat model"),
-          ".",
-        ),
+        "p.atk-note",
+        h("strong", "The residual risk, in full. "),
+        "The chain counts the auction's escrow pull as a token transfer, so a rule that lets the agent bid must list fUSD, and a stolen agent key can then move fUSD within the same limits: 100 a bid and the day's limit, to an address of its choice. This was tested live; the bound and the mitigations are in the ",
+        h("a", { href: `${REPO}/blob/main/THREAT_MODEL.md`, target: "_blank", rel: "noopener" }, "threat model"),
+        ".",
       ),
+      h("h3.sub-title", "The live run, 16 November 2026"),
+      runTable(),
     ),
   );
 }
 
-// ---------------------------------------------------------------- who uses it
+// ---------------------------------------------------------------- the problem, and who holds which key
 
-function roles(): HTMLElement {
-  const row = (who: string, what: string, link: HTMLElement) => h("div.role-row", h("dt", who), h("dd", h("p", what), link));
+function problem(): HTMLElement {
   return h(
-    "section.section#roles",
+    "section.section#problem",
     h(
-      "div.wrap.roles-grid",
-      h("div", label("Who uses it"), h("h2.section-title", "Owners set the limits. Anyone can check them.")),
+      "div.wrap",
       h(
-        "dl.roles",
-        row("Owners", "Write and sign mandates, link the agent's key under a spending rule, and revoke it in one transaction. From the CLI, or here with a guest account.", h("a.more", { href: "#/try" }, "Write a mandate", icon("arrow"))),
-        row("Agent builders", "Reuse the mandate channel and the smart-account path for any agent that spends. Both are qore-pq-kit modules, by git tag.", h("a.more", { href: KIT, target: "_blank", rel: "noopener" }, "qore-pq-kit", icon("arrow"))),
-        row("Anyone", "Read the live agent's mandates, decisions and refusals, check every receipt's signature in the browser, and look each transaction up on chain.", h("a.more", { href: "#/agent" }, "Inspect the live agent", icon("arrow"))),
+        "div.section-head.split",
+        h("div", label("The problem"), h("h2.section-title", "An agent with a wallet is a key anyone can talk to.")),
+        h("p.lead", "Give a model a key and every piece of text it reads is a possible order: your prompt, the auction's description, a message that claims to be from you. Peal Bidder puts two checks between the model's answer and the money, and only the owner's post-quantum signature can move either of them."),
       ),
+      problemPanels(),
+    ),
+  );
+}
+
+function keys(): HTMLElement {
+  return h(
+    "section.section#keys",
+    h(
+      "div.wrap",
+      h(
+        "div.section-head.split",
+        h("div", label("Who holds which key"), h("h2.section-title", "The agent never holds a key that can raise its own limits.")),
+        h("p.lead", "Every key that changes a limit is an ML-DSA-87 key on the owner's machine. The agent's machine holds a classical key the rule bounds, a key to open its mandates, and a key that signs its receipts."),
+      ),
+      keyMap(),
+    ),
+  );
+}
+
+// ---------------------------------------------------------------- the category's requirements
+
+function requirements(): HTMLElement {
+  const tx = (hash: string, note: string) => h("span.req-tx", h("code", `${hash}…`), " ", note);
+  const rows: [string, string, Child[], Child[]][] = [
+    [
+      "Scoped EVM window",
+      "The owner opens a window scoped to fUSD to approve the auction, then closes it. The fallback executor runs the agent only inside a window the owner opened for the auction.",
+      [h("code", "owner-cli/chain.ts"), ", ", h("code", "agent/window-executor.ts"), "; window-executor tests"],
+      [tx("F4AB3A44", "open, block 10,185,441"), tx("2A42A368", "close, block 10,185,446")],
+    ],
+    [
+      "Transaction, value, duration and target limits",
+      "The rule caps each execution at 100 fUSD and the day at 300, allows fUSD only and only commitBid and claim on the mandate's auction, and the key expires after 24 h. The mandate adds a validity window and a bid count.",
+      [h("code", "owner-cli/smart-account.ts"), "; smart-account and policy tests, 2,000-case fuzz"],
+      [tx("4012FE2E", "per-tx limit"), tx("8FB22F76", "target"), tx("B1E1DAD2", "daily limit")],
+    ],
+    [
+      "Smart-account spending rules",
+      "One owner-signed hybrid transaction links the agent's key to the owner's account with the rule. Each bid is a MsgExecuteEVM the agent signs and a relayer broadcasts.",
+      [h("code", "agent/smart-account-executor.ts"), ", ", h("code", "relayer/"), "; qore-pq-kit smart-account"],
+      [tx("249EC850", "link, block 10,185,459"), tx("27CAB8D0", "bid, block 10,185,500")],
+    ],
+    [
+      "Authenticated messaging",
+      "Mandates are signed with ML-DSA-87 and secp256k1 and sealed with ML-KEM-1024 to the agent's registered key. The agent checks them against pqcKeyStatus and refuses with one of 15 codes.",
+      [h("code", "common/mandate.ts"), ", ", h("code", "agent/inbox.ts"), "; 35 mandate tests"],
+      [tx("69839690", "agent's KEM key, block 10,183,371"), h("span.req-tx", "forged mandate refused, receipt #4")],
+    ],
+  ];
+  return h(
+    "section.section#requirements",
+    h(
+      "div.wrap",
+      h(
+        "div.section-head.split",
+        h("div", label("Post-quantum AI agents"), h("h2.section-title", "The category's requirements, with evidence.")),
+        h("p.lead", "Each requirement of the Build Before Q-Day category, how the Bidder meets it, where the code and tests are, and the transaction that shows it on qorechain-diana."),
+      ),
+      h(
+        "div.req-scroll",
+        { tabindex: "0", role: "region", "aria-label": "Requirements and evidence" },
+        h(
+          "table.req",
+          h("thead", h("tr", h("th", "Requirement"), h("th", "How it is met"), h("th", "Code and tests"), h("th", "On chain"))),
+          h("tbody", ...rows.map(([r, how, code, chain]) => h("tr", h("th", { scope: "row" }, r), h("td", how), h("td.req-code", ...code), h("td.req-chain", ...chain)))),
+        ),
+      ),
+      h("p.run-source", "Full hashes and the chain's refusal texts: ", h("a", { href: `${REPO}/blob/main/docs/spikes.md`, target: "_blank", rel: "noopener" }, "docs/spikes.md"), ". Tests: ", h("span.mono", "pnpm test"), ", 221 offline."),
     ),
   );
 }
@@ -470,5 +512,5 @@ function family(): HTMLElement {
 }
 
 export function landing(): HTMLElement {
-  return h("div.landing", hero(), proofBar(), mandateSection(), howItWorks(), security(), roles(), tryIt(), family());
+  return h("div.landing", hero(), proofBar(), problem(), keys(), mandateSection(), howItWorks(), security(), requirements(), tryIt(), family());
 }
