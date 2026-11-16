@@ -49,6 +49,8 @@ Layers, from the outside in:
 | `agent/store.ts` | Highest accepted nonce per owner (refuses replays and rollbacks) |
 | `agent/policy.ts`, `agent/auction.ts` | The deterministic clamp and the auction's price arithmetic |
 | `agent/planner/` | Claude Opus 5.5 planner, rule-based planner, and `decide` (planner then policy) |
+| `agent/audit.ts`, `agent/qorechain-mcp.ts` | `pnpm agent audit`: the receipts checked against the chain through the QoreChain MCP server (`@qorechain/mcp`, run in process): each transaction's outcome as recorded, its hybrid ML-DSA-87 layer verified against the signer's registered key, its signer, an `unknown` outcome resolved, and the owner's key with proof of possession. `--published` audits the live agent's published log, with no key |
+| `.mcp.json` | The QoreChain MCP server for the owner's own assistant (Claude Code and other MCP clients): the same read-only tools the audit uses. `pnpm qore …` runs them from a terminal (`@qorechain/qore-cli`) |
 | `agent/receipts.ts` | The receipts log: hash-chained, signed with the agent's ML-DSA-87 receipt key (qorechain-pqc's `mldsa87`; a whole log is checked with `batchVerify`) |
 | `agent/agent.ts` | The loop: receive, read auctions, plan, clamp, submit, receipt; rebuilds its ledger from the receipts after a restart |
 | `common/accounts.ts`, `common/home.ts` | Accounts and the key split: where each key lives, and the agent's file holding its classical key only |
@@ -70,7 +72,7 @@ Layers, from the outside in:
 | `scripts/publish-receipts.ts` | `pnpm web:receipts`: checks the live agent's receipts log and copies it, with the receipt key's public half, into `apps/web/public/live/` |
 | `scripts/web-smoke.ts` | `pnpm web:smoke`: the landing page and the guest-agent flow in headless Chromium |
 | `vercel.json` | Vercel build, the REST and RPC rewrites, and the security headers |
-| `test/` | 230 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
+| `test/` | 238 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -104,6 +106,8 @@ pnpm agent serve --executor smart-account --interval 60 --claim   # the long-run
 pnpm agent bids                       # after the close: the agent's bids and what they won
 pnpm agent claim --executor smart-account
 pnpm dashboard                        # http://127.0.0.1:8788
+pnpm agent audit --signers qor1<relayer>,qor1<agent-account>   # every receipt's transaction checked on chain (QoreChain MCP)
+pnpm qore pq status <tx hash>         # one transaction's hybrid ML-DSA-87 layer, verified (qore CLI)
 pnpm demo:testnet --check --auction 0x<auction>   # what the testnet demo still needs (read-only)
 ```
 
@@ -205,7 +209,7 @@ The design comes from the author's own earlier project, **Peal** (private, start
 
 ## Credits
 
-- QoreChain's kits: [@qorechain/qoresign](https://www.npmjs.com/package/@qorechain/qoresign) 0.2.0 (hybrid message signatures), [@qorechain/qoreseal](https://www.npmjs.com/package/@qorechain/qoreseal) 0.1.0 (ML-KEM-1024 envelopes), [@qorechain/pqc](https://www.npmjs.com/package/@qorechain/pqc) 0.2.3 (the receipts' ML-DSA-87) and [@qorechain/qorex-types](https://www.npmjs.com/package/@qorechain/qorex-types) 0.1.0 (the QoreX connection).
+- QoreChain's kits: [@qorechain/qoresign](https://www.npmjs.com/package/@qorechain/qoresign) 0.2.0 (hybrid message signatures), [@qorechain/qoreseal](https://www.npmjs.com/package/@qorechain/qoreseal) 0.1.0 (ML-KEM-1024 envelopes), [@qorechain/pqc](https://www.npmjs.com/package/@qorechain/pqc) 0.2.3 (the receipts' ML-DSA-87) and [@qorechain/qorex-types](https://www.npmjs.com/package/@qorechain/qorex-types) 0.1.0 (the QoreX connection), [@qorechain/mcp](https://www.npmjs.com/package/@qorechain/mcp) and [@qorechain/qore-cli](https://www.npmjs.com/package/@qorechain/qore-cli) 0.1.1 (the audit's view of the chain), with the [Model Context Protocol SDK](https://www.npmjs.com/package/@modelcontextprotocol/sdk).
 - [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit) `v0.4.0`, by git tag: network settings, hybrid-signed broadcasts, EVM transactions, secret files, fUSD conversion, the `messaging` module (the mandate's signature and envelope), the `threshold` module (sealing a bid to a committee, checking members) and the `smart-account` module (linking the agent's key, signing its calls, relaying).
 - [@qorechain/sdk](https://www.npmjs.com/package/@qorechain/sdk) and [@qorechain/evm](https://www.npmjs.com/package/@qorechain/evm) 0.14.0: windows, linked keys, spending rules, `MsgExecuteEVM`.
 - [Vite](https://vite.dev) for the web app, [Playwright](https://playwright.dev) (`playwright-core`) for its smoke run; fonts Satoshi (Fontshare) and Josefin Sans (Google Fonts).

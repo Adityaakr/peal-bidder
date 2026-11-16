@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "qorechain": {
+      "command": "pnpm",
+      "args": ["exec", "qorechain-mcp", "--network", "testnet"]
+    }
+  }
+}

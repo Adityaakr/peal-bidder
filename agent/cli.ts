@@ -14,6 +14,11 @@
  *   pnpm agent bids [--path smart-account|window]       the agent's bids on the mandate's auctions, from the chain
  *   pnpm agent claim --executor smart-account|window    claim every unclaimed bid of a finished auction
  *   pnpm agent receipts                     verify the receipts log
+ *   pnpm agent audit [--signers qor1..,qor1..] [--published]
+ *                                           check the receipts against the chain through the QoreChain MCP
+ *                                           server: each transaction's outcome, its hybrid ML-DSA-87 layer, its
+ *                                           signer, and the owner's key. --published audits the live agent's log
+ *                                           published in apps/web/public/live (no agent folder needed)
  *
  * --offline (receive): check the owner's signature against owner-public.json
  * instead of the chain. For local runs only; it says so in its output.
@@ -22,7 +27,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { hexToBytes } from "@noble/hashes/utils.js";
 import { createPublicClient, http, type Address } from "viem";
-import { int, out, parseFlags, str } from "../common/cli.ts";
+import { int, list, out, parseFlags, str } from "../common/cli.ts";
 import { agentPaths, bidderHome } from "../common/home.ts";
 import { network } from "../common/network.ts";
 import { BidderAgent, DryRunExecutor, type BidExecutor } from "./agent.ts";
@@ -30,7 +35,9 @@ import { ChainAuctionReader } from "./chain-auction.ts";
 import { auctionFactoryAbi } from "./auction-abi.ts";
 import { bidderFor, makeExecutor, type ExecutorKind } from "./executors.ts";
 import { auctionOutcome, claimAll } from "./claims.ts";
+import { auditReceipts } from "./audit.ts";
 import { acquireLock } from "./lock.ts";
+import { connectQoreChainMcp } from "./qorechain-mcp.ts";
 import { drainInbox, serve } from "./serve.ts";
 import type { CallSender } from "./smart-account-executor.ts";
 import { FileAuctionReader } from "./auction-file.ts";
@@ -238,8 +245,37 @@ export async function run(): Promise<void> {
       out(check.ok ? { ok: true, count: check.count, head: check.head, kinds: check.receipts.map((r) => r.body.kind) } : check);
       return;
     }
+    case "audit": {
+      const published = flags.published === true;
+      let lines: string[];
+      let publicKey: Uint8Array;
+      let owner: string;
+      if (published) {
+        const dir = new URL("../apps/web/public/live/", import.meta.url);
+        const meta = JSON.parse(readFileSync(new URL("agent.json", dir), "utf8")) as { owner: string; receiptPublicKey: string };
+        lines = readFileSync(new URL("receipts.jsonl", dir), "utf8").split("\n").filter((l) => l.length > 0);
+        publicKey = hexToBytes(meta.receiptPublicKey);
+        owner = meta.owner;
+      } else {
+        const id = loadAgentIdentity(paths);
+        lines = new FileSink(paths.receipts).read();
+        publicKey = id.receiptKey.publicKey;
+        owner = id.account.owner;
+      }
+      const check = verifyReceipts(lines, publicKey);
+      if (!check.ok) throw new Error(`the receipts log is broken at line ${check.line}: ${check.error}`);
+      const chain = await connectQoreChainMcp();
+      try {
+        const report = await auditReceipts(check.receipts, owner, chain, { signers: flags.signers ? list(flags, "signers") : [] });
+        out({ receipts: check.count, ...report });
+        if (!report.ok) process.exitCode = 1;
+      } finally {
+        await chain.close();
+      }
+      return;
+    }
     default:
-      throw new Error("usage: pnpm agent init|receive|run|status|receipts");
+      throw new Error("usage: pnpm agent init|receive|run|status|receipts|audit");
   }
 }
 
