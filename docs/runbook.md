@@ -15,6 +15,7 @@ Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/
 | 5 | Owner | `pnpm owner register-agent` | hybrid `MsgRegisterKEMKey` signed with the agent account's keys; writes `agent/card.json` (QoreSeal recipient card, signed by the agent account) | step 4 |
 | 6 | Owner | `pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 [--daily-limit 500] [--commit-bid-signature '<sig>'] [--dry-run]` | one hybrid tx: `MsgUpdateSpendingRules` + `MsgRegisterAuthenticator` (agent key, `evm` permission, expiry = the limits' end) | step 4 |
 | 7 | Owner | `pnpm owner convert --amount 500` (the faucet pays fUSD as bank coins, spike S5), then `pnpm owner approve --spender 0x<auction> --amount 500` | opens a window scoped to fUSD for one tx, `approve`, closes the window | fUSD and QOR on the owner |
+| 7a | Owner | `pnpm owner topup --qor 2 [--slippage-bps 100] [--max-impact-bps 100] [--dry-run]`: more budget than the faucet's fUSD. Swaps QOR for fUSD on the AMM's fUSD/QOR pool at the chain's quote less the slippage tolerance, and converts that minimum to ERC-20 fUSD in the same transaction | one hybrid `MsgSwapExactIn` + `MsgConvertCoin` (0.15 QOR fee) | QOR on the owner |
 | 8 | Owner | `pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 --max-bids 5 --hours 24 --instructions "..." --deliver` | nothing (writes `owner/outbox/<nonce>.qoreseal`, and with `--deliver` copies it to `agent/inbox/`) | step 5 (the card), or `--offline` |
 | 9 | Agent | `pnpm agent receive` | nothing (reads the owner's key with `eth_call` to `pqcKeyStatus`) | step 4 for the owner, or `--offline` |
 | 10 | Agent | `pnpm agent run --executor smart-account --rounds 3 --interval 30` (auctions read from the chain; `--factory 0x…` adds the issuer's text; `--auctions file.json` reads a file instead) | `MsgExecuteEVM` through the relayer. `--executor dry-run` (default) sends nothing | steps 6, 7, 11 |
@@ -27,7 +28,10 @@ Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/
 | — | Owner | Fallback path (design R1, retired by S2; for comparison only): `pnpm owner fund-agent --amount 500`, `pnpm owner approve --from agent --spender 0x<auction> --amount 500`, `pnpm owner window open --targets 0x<auction> --max-txs 5`, then `pnpm agent run --executor window` | an fUSD transfer, an approval from the agent account, a window | QOR on owner and agent account |
 | — | Owner | `pnpm owner rules ...` (same flags as `link`) | `MsgUpdateSpendingRules` only | step 6 |
 | — | Owner | `pnpm owner revoke` | `MsgRevokeAuthenticator`: the agent's key stops working at once | step 6 |
+| — | Owner | `pnpm owner pause` / `pnpm owner resume` (`--agent-url http://127.0.0.1:8789`) | nothing: a Sign In With QoreChain message to the running agent (`agent serve --control-port 8789`), checked against the owner's ML-DSA-87 key on chain. Paused, the agent reads mandates and claims but places no bid; the state survives a restart | step 4 |
 | — | Anyone | `pnpm owner status`, `pnpm agent status`, `pnpm agent receipts` | nothing | — |
+| 15 | Owner or agent | `pnpm agent audit --signers qor1<relayer>,qor1<agent-account>` (or `--published` for the published log): each receipt's transaction read through the QoreChain MCP server; exits 1 on a mismatch, a foreign signer or a missing ML-DSA-87 layer | nothing | the receipts log |
+| — | Anyone | `pnpm qore tx get <hash>`, `pnpm qore pq status <hash or address>`: one check by hand, the same tools as the audit | nothing | — |
 
 ## The demo run
 

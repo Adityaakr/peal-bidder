@@ -41,6 +41,8 @@ export interface ServeContext {
   /** Claims, when on: where to read outcomes, whose bids, how to send, where to record. */
   claims?: { client: ClaimsClient; bidder: Address; sender: CallSender; receipts: ReceiptLog };
   log?: (line: Record<string, unknown>) => void;
+  /** True while the owner has paused the agent (agent/control.ts): no planning round, so no bid. */
+  paused?: () => boolean;
 }
 
 export interface Tick {
@@ -63,10 +65,14 @@ function summarise(s: StepResult): Record<string, unknown> {
 export async function tick(ctx: ServeContext): Promise<Tick> {
   const inbox = await drainInbox(ctx.agent, ctx.inbox);
   let step: Tick["step"];
-  try {
-    step = await ctx.agent.step();
-  } catch (err) {
-    step = { kind: "error", message: (err as Error).message };
+  if (ctx.paused?.() === true) {
+    step = { kind: "idle", why: "paused by the owner" };
+  } else {
+    try {
+      step = await ctx.agent.step();
+    } catch (err) {
+      step = { kind: "error", message: (err as Error).message };
+    }
   }
   const t: Tick = { at: new Date().toISOString(), inbox, step };
   const mandate = ctx.agent.state.mandate;

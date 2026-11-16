@@ -12,6 +12,7 @@
  * authenticator, relayed with MsgExecuteEVM, is the chain's route for that; it is
  * not yet proven end to end on the testnet.)
  */
+import { QOREX_MOCK_RDNS, QOREX_RDNS } from "@qorechain/qorex-types";
 import { EVM_RPC, EVM_CHAIN_ID } from "../config.ts";
 
 interface Eip1193 {
@@ -27,7 +28,8 @@ const found = new Map<string, Announced>();
 
 window.addEventListener("eip6963:announceProvider", (e) => {
   const d = (e as CustomEvent<Announced>).detail;
-  if (d?.info?.rdns && !d.info.rdns.startsWith("network.qore.qorex")) found.set(d.info.rdns, d);
+  // QoreX (and its test double) has its own button; it cannot sign EVM transactions for a page yet.
+  if (d?.info?.rdns && d.info.rdns !== QOREX_RDNS && d.info.rdns !== QOREX_MOCK_RDNS) found.set(d.info.rdns, d);
 });
 window.dispatchEvent(new Event("eip6963:requestProvider"));
 

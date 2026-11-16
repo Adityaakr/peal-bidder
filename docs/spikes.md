@@ -140,3 +140,48 @@ Run: `pnpm web:smoke` (headless Chromium against the Vite dev server and its pro
 - **Sealing a bid in the browser works**: the guest agent sealed a bid to the 2-of-3 committee of auction `0xE5fC…be76` (members checked against the chain), 5,828 bytes of `commitBid` calldata, and sent nothing.
 - **No auction was taking bids** at 15:00 UTC: the factory's four auctions had all closed. The playground rehearses on the last one, read from the chain and treated as open, and says so.
 - **ML-DSA-87 in the page:** checking the live agent's 21 receipts takes about 30 ms in Chromium on a laptop.
+
+### 2026-11-16 (UTC): how the fest site verifies kits and features
+
+Read-only. The fest's project page marks each ticked kit and network feature VERIFIED or DECLARED ("Verified means found in the repo's dependency files or proven on testnet"). The rule is not published, so it was read off the site: the project pages of all 63 entries on build.qorechain.io, and the dependency files of the repositories whose items show VERIFIED.
+
+- **Kits are matched by npm package name in any `package.json` of the repository**, nested ones included. Examples: wicketgate has `@qorechain/mcp` only in `packages/watcher/package.json` and `@qorechain/qorescan` in the root, and both kits are verified; DeadDrop has `@qorechain/handles` only in `web/package.json`; Perennial and steal-this-vault list `create-qorechain-dapp` as a dependency and it verifies; Fenestella's `@qorechain/wallet-adapter`; entries with `@qorechain/qorex-types` (and no other QoreX package) show "QoreX integrations" verified. Peal Tender's `@qorechain/pqc` verifies "qorechain-pqc", while Peal Sealed Auction, which uses it only through qore-pq-kit, shows it DECLARED: **transitive dependencies do not count**.
+- **Two network features are verified from dependencies too**: "MCP server or qore CLI" (wicketgate, with `@qorechain/mcp`) and "QoreScan" (wicketgate and LatticeWard, with `@qorechain/qorescan`).
+- **The other features come from the listed addresses' activity**: hybrid transactions (52 entries verified), key registration (52), EVM window (41), fest tokens (39), the encryption key registry (16), AMM pools (13), spending rules (6). "Solidity PQC key status" and "Solidity PQC signature check" are verified on no entry (23 declared each), and "Sign In With QoreChain" is declared by one entry and verified by none.
+- The custody kit is not on any registry (`git clone` only), and no entry shows it verified.
+
+What the Bidder does with this is in [kits.md](kits.md).
+
+### 2026-11-16 (UTC): the agent's audit through the QoreChain MCP server
+
+Run: `pnpm agent audit --published --signers qor16tsewlj6jpt4v2esmrhuk7z2xems6e09z5rpzc,qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur`, the QoreChain MCP server 0.1.1 in process, read-only, about 21:00 UTC.
+
+- All 21 published receipts verify; they name 8 transactions (4 bids, 2 refused bids, 3 claims; one of each scene that sent something). For each, `get_transaction` agrees with the recorded outcome, the signer is the relayer, and `get_pq_status` verifies the hybrid ML-DSA-87 layer against the relayer's registered key with sign-bytes v2. The owner's key reads registered, ML-DSA-87, possession proven. The agent's own log (`pnpm agent audit` on the agent folder) gives the same result.
+- **`get_transaction` decodes a linked-key refusal.** A refused `MsgExecuteEVM` is a code-0 transaction; the tool reports `success: false` and puts the chain's reason in `execution_failures[].reason` (for example "daily limit … exceeded: spent 201000000, remaining 0"), and adds that the nonce is consumed. So the audit needs no decoding of its own.
+- The tools answer from the public endpoints (REST, consensus RPC); 10 upstream requests for one landed and one refused transaction plus the owner. Recorded for the tests with `pnpm record:mcp-audit`.
+
+### 2026-11-16 (UTC): the owner's brake, live
+
+Run at about 21:38 UTC: the live agent's folder served in dry-run (`pnpm agent serve --executor dry-run --interval 4 --max-ticks 6 --control-port 8789`), then `pnpm owner pause`, `GET /siwq/status`, `pnpm owner resume` with the owner's real keys. No transaction was sent.
+
+- The agent read the owner's ML-DSA-87 key from `pqcKeyStatus` (possession proven) and accepted both Sign In With QoreChain messages. The ticks in between logged `{"idle":"paused by the owner"}`, and after the resume the agent went back to its own reason ("the mandate has expired").
+- Each change is a `control` receipt. The live log went from 21 to 23 receipts, and `pnpm agent receipts` verifies the chain and every signature.
+- QoreSign 0.2.0's `signSiwq` refuses to sign for an address the classical key does not control. `verifySiwq` with `requirePq` refuses a sign-in without its ML-DSA-87 half, and one whose ML-DSA-87 half comes from a key other than the registered one: the case of a stolen classical key paired with the thief's own ML-DSA-87 key (`test/control.test.ts`).
+
+### 2026-11-16 (UTC): QoreScan on the Bidder's deployment
+
+Run: `pnpm cbom` (QoreScan 0.1.0 through its npm launcher; the binary is downloaded on first use and checked against the SHA-256 shipped in the package), 21:41 UTC. Read-only.
+
+- **TLS:** all three public endpoints (`evm-testnet`, `api-testnet`, `rpc-testnet`) negotiate TLS 1.3 with the hybrid group X25519MLKEM768 when it is offered first. Their certificates are ECDSA (P-256 leaf, P-384 in the chain, under GTS Root R4). So the key exchange is post-quantum, but endpoint authentication is not.
+- **Chain:** 24 protocol features reported, among them `pqc-sign-bytes-v2`, `pqc-kem-registry`, `evm-pqc-window-targets` and `pqc-possession-flag`. The validators' consensus keys are Ed25519 (4 active).
+- **Accounts:** the owner, agent account and relayer each have a hybrid ML-DSA-87 key; QoreScan's evidence line names the algorithm "dilithium5", the chain's older name for it. The agent account also has its ML-KEM-1024 key in the KEM registry.
+- The threat model gained a "Cryptographic inventory" section from this, including what an impersonated endpoint could and could not do.
+
+### 2026-11-16 (UTC): the owner's budget top-up on the AMM
+
+Run: `pnpm owner topup --qor 2` from the owner's account, one hybrid transaction `3FF7C996D08CA78DEB15ABB6D47152BFDCF5279AD287E8F2D2AFAAB05BB4150D` at block 10,217,816.
+
+- **The chain quotes swaps over REST** at `GET /qorechain/amm/v1/quote/exact_in?pool_id=…&denom_in=…&amount_in=…`. It answers `{amount_out, fee, impact_bps}`; the guessed routes `quote_exact_in` and `pools/{id}/…` answer "Not Implemented". For 2 QOR on pool 2 (fUSD/QOR) the quote was 136,002 µfUSD with a 6,000 uqor fee (30 bps) and an impact of 3 bps. The `amm_swap` event paid exactly that, and reports the 10 bps protocol fee as part of the 30 (`protocol_fee` 2,000).
+- **Swap and conversion in one transaction work**: `MsgSwapExactIn` (minimum out 134,641, the quote less 1%) then `MsgConvertCoin` of that minimum to the owner's 0x address. The owner's ERC-20 fUSD went from 354,352,942 to 354,487,583 (+134,641). The 1,361 above the minimum stayed as bank coins.
+- Module parameters: `swap_fee_bps` 30, `protocol_fee_bps` 10, `max_swap_impact_bps` 500.
+- Cost: 2 QOR swapped and a 0.15 QOR fee. `qore pq status` verifies the transaction's ML-DSA-87 layer (sign-bytes v2).
