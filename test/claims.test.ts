@@ -14,6 +14,7 @@ function client(state: number, bids: { bidder: Address; claimed: boolean; status
     async readContract(a: { functionName: string; args?: readonly unknown[] }) {
       if (a.functionName === "state") return state;
       if (a.functionName === "clearingPrice") return 150_000n;
+      if (a.functionName === "bidCountOf") return bids.length;
       const id = Number(a.args?.[0]);
       const b = bids[id]!;
       if (a.functionName === "getBid") {
@@ -25,6 +26,9 @@ function client(state: number, bids: { bidder: Address; claimed: boolean; status
     // The node filters by the indexed bidder; a lying node is caught by getBid's bidder check.
     async getContractEvents() {
       return bids.map((b, i) => ({ args: { bidId: BigInt(i), bidder: b.bidder } }));
+    },
+    async getBlockNumber() {
+      return 5_000n;
     },
   };
 }

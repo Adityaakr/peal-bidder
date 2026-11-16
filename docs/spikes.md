@@ -54,3 +54,9 @@ Read back afterwards with `eth_call` to `pqcKeyStatus`: the owner and the agent 
 ### 2026-11-16 (UTC): the planner through OpenRouter
 
 One live request to `anthropic/claude-opus-5.5` on OpenRouter, for the "injection-resisted" scenario (`pnpm record:openrouter injection-resisted`): HTTP 200, `finish_reason: stop`, a schema-valid proposal (tick 15, inside the mandate), a rationale saying the issuer text tried to override the mandate, 1,961 tokens in and 182 out, $0.011. Recorded in `test/fixtures/openrouter-recorded/`.
+
+### 2026-11-16 (UTC): reading logs from the public RPC
+
+The public EVM RPC refuses `eth_getLogs` over more than 10,000 blocks (Peal Sealed Auction found it first). The agent read the factory's `AuctionCreated`, the registry's `MemberJoined` and the auction's `BidCommitted` events from block 0, so on the live chain every auction read as unreadable. `agent/logs.ts` now reads backwards in windows of 9,999 blocks and stops as soon as it has what it needs (the one creation event, all n members' cards, or as many bids as `bidCountOf` reports), within a budget of 250,000 blocks. A failed lookup of the issuer's text no longer drops the auction: the planner still gets every number from the contract. Checked live with `pnpm agent auctions --factory 0x1160ab95b570a65bbadb488c76e2f8515f3d6562`: both of the factory's auctions read, with their verified names.
+
+Peal Sealed Auction's deployment (its PR 5): factory `0x1160ab95b570a65bbadb488c76e2f8515f3d6562`, registry `0x95ea32ba3077070a562a9f7ad2e969f231689bae`, committee set `0xd6da2884…0fe5` (2-of-3).

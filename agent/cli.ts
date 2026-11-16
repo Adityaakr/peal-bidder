@@ -7,6 +7,7 @@
  *                                           plan and bid; --rounds N --interval S. Auctions come from the
  *                                           chain unless --auctions names a file. The default executor is dry-run.
  *   pnpm agent status                       the active mandate and what it has committed
+ *   pnpm agent auctions --factory 0x...     the factory's auctions, and which take bids now (read-only)
  *   pnpm agent serve [--executor ...] [--interval 60] [--claim] [--max-ticks N]
  *                                           the long-running agent: inbox, one planning round and (with --claim)
  *                                           claims, every interval; stops cleanly on SIGINT/SIGTERM
@@ -26,6 +27,7 @@ import { agentPaths, bidderHome } from "../common/home.ts";
 import { network } from "../common/network.ts";
 import { BidderAgent, DryRunExecutor, type BidExecutor } from "./agent.ts";
 import { ChainAuctionReader } from "./chain-auction.ts";
+import { auctionFactoryAbi } from "./auction-abi.ts";
 import { bidderFor, makeExecutor, type ExecutorKind } from "./executors.ts";
 import { auctionOutcome, claimAll } from "./claims.ts";
 import { acquireLock } from "./lock.ts";
@@ -204,6 +206,23 @@ export async function run(): Promise<void> {
       const claims = [];
       for (const o of outcomes) claims.push({ auction: o.auction, state: o.state, claims: await claimAll({ outcome: o, sender: executor as CallSender, receipts, mandateHash: agent.state.mandateHash ?? null }) });
       out({ bidder, claims });
+      return;
+    }
+    case "auctions": {
+      const factory = str(flags, "factory") as Address;
+      const client = createPublicClient({ transport: http(network().evmRpc) });
+      const count = await client.readContract({ address: factory, abi: auctionFactoryAbi, functionName: "auctionCount" });
+      const list = await client.readContract({ address: factory, abi: auctionFactoryAbi, functionName: "auctionsPaged", args: [0n, count] });
+      const now = Number((await client.getBlock()).timestamp);
+      const views = await new ChainAuctionReader(client, { factory }).read([...list]);
+      out({
+        factory,
+        chainTime: now,
+        auctions: list.map((a) => {
+          const v = views.find((x) => x.address === a.toLowerCase());
+          return v ? { address: a, open: v.commitOpen, closesIn: v.commitEnd - now, name: v.name } : { address: a, readable: false };
+        }),
+      });
       return;
     }
     case "status": {

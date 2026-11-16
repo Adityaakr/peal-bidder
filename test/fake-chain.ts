@@ -129,6 +129,9 @@ export function fakeChain(o: FakeChainOptions = {}) {
     async getBlock() {
       return { timestamp: o.blockTime ?? 1_795_000_000n };
     },
+    async getBlockNumber() {
+      return 50_000n;
+    },
   };
 
   const fetch = (async (url: string) => {

@@ -12,8 +12,9 @@ import type { SubmitResult } from "./agent.ts";
 import { AUCTION_STATE, BID_STATUS, EXCLUSION, sealedAuctionAbi } from "./auction-abi.ts";
 import type { ReceiptLog } from "./receipts.ts";
 import type { CallSender } from "./smart-account-executor.ts";
+import { scanBackwards } from "./logs.ts";
 
-export type ClaimsClient = Pick<PublicClient, "readContract" | "getContractEvents">;
+export type ClaimsClient = Pick<PublicClient, "readContract" | "getContractEvents" | "getBlockNumber">;
 
 export interface OwnBid {
   auction: string;
@@ -41,14 +42,22 @@ export interface AuctionOutcome {
 
 export const CLAIM_GAS = 300_000n;
 
-export async function auctionOutcome(client: ClaimsClient, auction: string, bidder: Address, fromBlock = 0n): Promise<AuctionOutcome> {
+export async function auctionOutcome(client: ClaimsClient, auction: string, bidder: Address, fromBlock?: bigint): Promise<AuctionOutcome> {
   const address = auction as Address;
-  const [stateIndex, clearingPrice] = await Promise.all([
+  const [stateIndex, clearingPrice, mine] = await Promise.all([
     client.readContract({ address, abi: sealedAuctionAbi, functionName: "state" }),
     client.readContract({ address, abi: sealedAuctionAbi, functionName: "clearingPrice" }),
+    client.readContract({ address, abi: sealedAuctionAbi, functionName: "bidCountOf", args: [bidder] }),
   ]);
   const state = AUCTION_STATE[stateIndex] ?? "Created";
-  const logs = await client.getContractEvents({ address, abi: sealedAuctionAbi, eventName: "BidCommitted", args: { bidder }, fromBlock, strict: true });
+  const logs =
+    Number(mine) === 0
+      ? []
+      : await scanBackwards(
+          client,
+          (from, to) => client.getContractEvents({ address, abi: sealedAuctionAbi, eventName: "BidCommitted", args: { bidder }, fromBlock: from, toBlock: to, strict: true }),
+          { done: (found) => found.length >= Number(mine), ...(fromBlock !== undefined ? { fromBlock } : {}) },
+        );
   const bids: OwnBid[] = [];
   for (const l of logs) {
     const bidId = l.args.bidId as bigint;

@@ -57,13 +57,14 @@ Layers, from the outside in:
 | `agent/bid-encoder.ts` | Verifies the auction's committee (qore-pq-kit `verifyMember`), checks the escrow with the contract, seals the bid (`sealSlot`) and encodes `commitBid` |
 | `agent/chain-auction.ts`, `agent/auction-abi.ts` | Reads auctions from the chain; the small slice of Peal Sealed Auction's interface the agent uses, written out by hand |
 | `agent/serve.ts`, `agent/lock.ts` | The long-running agent (`pnpm agent serve`): inbox, one planning round and claims per tick, one JSON line per tick; one writing process per agent folder |
+| `agent/logs.ts` | Event logs in windows the public RPC accepts (it refuses ranges over 10,000 blocks) |
 | `agent/claims.ts` | After the auction: the agent's bids read from the chain (`BidCommitted`, `getBid`, `allocationOf`), and `claim` for each unclaimed one, with a receipt per claim |
 | `scripts/demo-testnet.ts` | The testnet demo: one landed bid and each refusal, with transaction hashes; `--check` lists what is in place and what is missing (read-only) |
 | `agent/window-executor.ts`, `agent/executors.ts` | The fallback executor (the agent's own account inside an owner-opened window) and the `--executor` choice |
 | `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
 | `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 212 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
+| `test/` | 215 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
 
 ## Running it
 

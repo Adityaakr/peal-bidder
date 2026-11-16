@@ -135,8 +135,9 @@ describe("serve", () => {
     const sender: CallSender = { sendCall: async (c) => (sent.push(c.data), { status: "landed", txHash: "0x1" }) };
     const client = {
       readContract: async (a: { functionName: string }) =>
-        a.functionName === "state" ? 4 : a.functionName === "clearingPrice" ? 1n : a.functionName === "allocationOf" ? 5n : { bidder: owner.hex, seq: 0, status: 1, exclusion: 0, shareMask: 3, bondBurned: false, claimed: false, quantity: 1n, tick: 1, escrow: 1n, ct: "0x", keyHash: "0x" },
+        a.functionName === "state" ? 4 : a.functionName === "clearingPrice" ? 1n : a.functionName === "allocationOf" ? 5n : a.functionName === "bidCountOf" ? 1 : { bidder: owner.hex, seq: 0, status: 1, exclusion: 0, shareMask: 3, bondBurned: false, claimed: false, quantity: 1n, tick: 1, escrow: 1n, ct: "0x", keyHash: "0x" },
       getContractEvents: async () => [{ args: { bidId: 0n, bidder: owner.hex } }],
+      getBlockNumber: async () => 100n,
     };
     const t = await tick({
       agent,
