@@ -88,35 +88,22 @@ export function icon(name: string): SVGSVGElement {
   return svg;
 }
 
-// ---------------------------------------------------------------- marks (docs/design.md, Marks)
+// ---------------------------------------------------------------- marks (the Peal logo family)
 
-export type Product = "bidder" | "tender" | "auction";
+export type Product = "bidder" | "tender" | "auction" | "peal";
 
 /**
- * A Peal product mark on the family's shared construction (a 26 x 26 grid, a 22px
- * circle as the outer form). The Bidder draws its own in its accent; the sibling
- * products' marks are drawn here in plain ink, since their colours are theirs.
+ * A Peal mark, used as designed: the masters come from Peal Tender's docs/brand
+ * (the family's logo set) and are served unaltered from public/brand. The mark is
+ * decoration beside a written name, so it carries no alternative text of its own.
  */
-export function mark(product: Product = "bidder", size = 26, colour = product === "bidder" ? "#0369a1" : "#3a4656"): SVGSVGElement {
-  const svg = s("svg", { viewBox: "0 0 26 26", width: size, height: size, class: "mark", "aria-hidden": "true" }) as SVGSVGElement;
-  const blue = colour;
-  svg.append(s("circle", { cx: 13, cy: 13, r: 11, fill: "none", stroke: blue, "stroke-width": 2 }));
-  if (product === "bidder") {
-    svg.append(s("circle", { cx: 9, cy: 13, r: 2.6, fill: blue }));
-    svg.append(s("path", { d: "M12 13h7M16 10l3 3-3 3", fill: "none", stroke: blue, "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" }));
-  } else if (product === "tender") {
-    for (const [cx, cy, on] of [
-      [13, 7.5, true],
-      [8.2, 16, true],
-      [17.8, 16, false],
-    ] as const) {
-      svg.append(s("circle", { cx, cy, r: 2.6, fill: on ? blue : "#fff", stroke: blue, "stroke-width": 1.6 }));
-    }
-  } else {
-    svg.append(s("path", { d: "M7 13h12", stroke: blue, "stroke-width": 2, "stroke-linecap": "round" }));
-    svg.append(s("rect", { x: 10, y: 10, width: 6, height: 6, rx: 1, fill: blue }));
-  }
-  return svg;
+export function mark(product: Product = "bidder", size = 24): HTMLImageElement {
+  return h("img.mark", { src: `/brand/${product}/mark.svg`, width: size, height: size, alt: "", "aria-hidden": "true", decoding: "async" }) as HTMLImageElement;
+}
+
+/** The Peal Bidder lockup (mark and name), as designed, at a given height. */
+export function lockup(height = 24): HTMLImageElement {
+  return h("img.lockup", { src: "/brand/bidder/lockup.svg", width: Math.round((height * 106.18) / 24), height, alt: "Peal Bidder" }) as HTMLImageElement;
 }
 
 // ---------------------------------------------------------------- pieces

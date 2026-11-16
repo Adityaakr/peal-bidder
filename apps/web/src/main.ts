@@ -7,7 +7,7 @@
  */
 import "./styles.css";
 import { REPO } from "./config.ts";
-import { h, icon, mark } from "./ui.ts";
+import { h, icon, lockup, mark } from "./ui.ts";
 import { landing } from "./pages/landing.ts";
 import { agentPage } from "./pages/agent.ts";
 import { tryPage } from "./pages/try.ts";
@@ -33,16 +33,16 @@ function header(path: string): HTMLElement {
   const family = h(
     "nav.family-switch",
     { "aria-label": "Peal products" },
-    h("a", { href: "https://github.com/Adityaakr/peal-sealed-auction", target: "_blank", rel: "noopener", title: "Peal Sealed Auction" }, mark("auction", 18), h("span.sr-only", "Peal Sealed Auction")),
-    h("a", { href: "https://github.com/Adityaakr/peal-tender", target: "_blank", rel: "noopener", title: "Peal Tender" }, mark("tender", 18), h("span.sr-only", "Peal Tender")),
-    h("a.is-here", { href: "#/", title: "Peal Bidder (this site)", "aria-current": "true" }, mark("bidder", 18), h("span.sr-only", "Peal Bidder")),
+    h("a", { href: "https://github.com/Adityaakr/peal-sealed-auction", target: "_blank", rel: "noopener", title: "Peal Sealed Auction" }, mark("auction", 20), h("span.sr-only", "Peal Sealed Auction")),
+    h("a", { href: "https://github.com/Adityaakr/peal-tender", target: "_blank", rel: "noopener", title: "Peal Tender" }, mark("tender", 20), h("span.sr-only", "Peal Tender")),
+    h("a.is-here", { href: "#/", title: "Peal Bidder (this site)", "aria-current": "true" }, mark("bidder", 20), h("span.sr-only", "Peal Bidder")),
   );
   const link = (href: string, text: string, current = false) => h("a.nav-link", { href, ...(current ? { "aria-current": "page" } : {}) }, text);
   return h(
     "header.site-nav",
     h(
       "div.wrap.nav-inner",
-      h("a.wordmark", { href: "#/", "aria-label": "Peal Bidder, home" }, mark("bidder"), h("span", "Peal Bidder")),
+      h("a.wordmark", { href: "#/", "aria-label": "Peal Bidder, home" }, lockup(26)),
       family,
       h(
         "nav.nav-links",
@@ -73,7 +73,7 @@ function footer(): HTMLElement {
         "div.foot-grid",
         h(
           "div.foot-brand",
-          h("a.wordmark", { href: "#/" }, mark("bidder"), h("span", "Peal Bidder")),
+          h("a.wordmark", { href: "#/", "aria-label": "Peal Bidder, home" }, lockup(26)),
           h("p", "An AI agent that bids in Peal sealed auctions for its owner, inside limits QoreChain enforces."),
         ),
         col("Product", ["Live agent", "#/agent"], ["Your agent", "#/try"], ["How it works", "#how-it-works"], ["Security", "#security"]),
@@ -83,10 +83,10 @@ function footer(): HTMLElement {
       h(
         "div.foot-family",
         { "aria-label": "The Peal family" },
-        h("span.foot-family-title", "The Peal family"),
-        h("a", { href: "https://github.com/Adityaakr/peal-tender", target: "_blank", rel: "noopener" }, mark("tender", 18), h("span", h("strong", "Peal Tender"), ": the treasury")),
-        h("a", { href: "https://github.com/Adityaakr/peal-sealed-auction", target: "_blank", rel: "noopener" }, mark("auction", 18), h("span", h("strong", "Peal Sealed Auction"), ": the venue")),
-        h("a.is-current", { href: REPO, target: "_blank", rel: "noopener", "aria-current": "true" }, mark("bidder", 18), h("span", h("strong", "Peal Bidder"), ": the participant"), h("span.foot-here", "this site")),
+        h("span.foot-family-title", mark("peal", 20), "The Peal family"),
+        h("a", { href: "https://github.com/Adityaakr/peal-tender", target: "_blank", rel: "noopener" }, mark("tender", 20), h("span", h("strong", "Peal Tender"), ": the treasury")),
+        h("a", { href: "https://github.com/Adityaakr/peal-sealed-auction", target: "_blank", rel: "noopener" }, mark("auction", 20), h("span", h("strong", "Peal Sealed Auction"), ": the venue")),
+        h("a.is-current", { href: REPO, target: "_blank", rel: "noopener", "aria-current": "true" }, mark("bidder", 20), h("span", h("strong", "Peal Bidder"), ": the participant"), h("span.foot-here", "this site")),
       ),
       h(
         "div.foot-base",

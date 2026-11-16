@@ -221,17 +221,20 @@ body.is-scrolled .site-nav {
   white-space: nowrap;
 }
 
-.wordmark span {
-  padding-top: 1px;
-}
-
 .wordmark:hover {
   color: var(--accent);
   text-decoration: none;
 }
 
+.lockup {
+  display: block;
+  height: 26px;
+  width: auto;
+}
+
 .mark {
   flex: none;
+  display: block;
 }
 
 .family-switch {
@@ -310,8 +313,8 @@ body.is-scrolled .site-nav {
   .nav-inner {
     gap: 10px;
   }
-  .wordmark {
-    font-size: 21px;
+  .site-nav .lockup {
+    height: 30px;
   }
 }
 
@@ -3276,6 +3279,9 @@ body.wallet-open .wallet-scrim {
 }
 
 .foot-family-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--mono);
   font-size: 12px;
   letter-spacing: 0.04em;
