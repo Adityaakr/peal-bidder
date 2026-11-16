@@ -92,10 +92,14 @@ export function icon(name: string): SVGSVGElement {
 
 export type Product = "bidder" | "tender" | "auction";
 
-/** A Peal product mark: a ring with the product's sign inside, 26 x 26. */
-export function mark(product: Product = "bidder", size = 26): SVGSVGElement {
+/**
+ * A Peal product mark on the family's shared construction (a 26 x 26 grid, a 22px
+ * circle as the outer form). The Bidder draws its own in its accent; the sibling
+ * products' marks are drawn here in plain ink, since their colours are theirs.
+ */
+export function mark(product: Product = "bidder", size = 26, colour = product === "bidder" ? "#0369a1" : "#3a4656"): SVGSVGElement {
   const svg = s("svg", { viewBox: "0 0 26 26", width: size, height: size, class: "mark", "aria-hidden": "true" }) as SVGSVGElement;
-  const blue = "#0369a1";
+  const blue = colour;
   svg.append(s("circle", { cx: 13, cy: 13, r: 11, fill: "none", stroke: blue, "stroke-width": 2 }));
   if (product === "bidder") {
     svg.append(s("circle", { cx: 9, cy: 13, r: 2.6, fill: blue }));
