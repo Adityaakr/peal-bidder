@@ -20,7 +20,8 @@ export interface PlannerOutput {
 }
 
 export interface Planner {
-  readonly name: "claude" | "rules";
+  /** "simulated": a stand-in for a compromised model, used only by the web app's "try to break it" scenes. */
+  readonly name: "claude" | "rules" | "simulated";
   /** Throws when the planner cannot answer; the caller then tries the next planner. */
   propose(input: PlannerInput): Promise<PlannerOutput>;
 }

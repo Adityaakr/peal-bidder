@@ -2,7 +2,8 @@ import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { FileSink, MemorySink, ReceiptLog, generateReceiptKey, verifyReceipts } from "../agent/receipts.ts";
+import { MemorySink, ReceiptLog, generateReceiptKey, verifyReceipts } from "../agent/receipts.ts";
+import { FileSink } from "../agent/receipt-file.ts";
 
 const key = generateReceiptKey();
 const AGENT = "qor1agent";

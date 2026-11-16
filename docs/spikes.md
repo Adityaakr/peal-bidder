@@ -130,3 +130,13 @@ Afterwards the owner holds 33 PEAL-T. Its ERC-20 fUSD went from 199 to 366: each
 - **Planner:** about $0.06 on OpenRouter in all.
 
 The agent's key stays linked until its 24 h expiry (2026-11-17, about 08:54 UTC), under a rule that allows only `commitBid` and `claim` on this finished auction.
+
+### 2026-11-16 (UTC): the web app against the testnet, from a browser
+
+Run: `pnpm web:smoke` (headless Chromium against the Vite dev server and its proxy), and the pages by hand. Read-only; nothing was sent.
+
+- **The EVM RPC answers a browser directly** (`https://evm-testnet.qore.host`, origin `http://localhost:*`): `eth_call` to `pqcKeyStatus`, the factory's `auctionsPaged`, auction `config`/`state`/`escrowFor`/`bidCountOf`, and the registry's `MemberJoined` logs (two windows of 10,000 blocks from block 10,183,000, where the committee set was registered at 10,183,212). This agrees with qore-pq-kit spike S4.
+- **REST needs the proxy.** Through `/api/qore/rest` (Vite locally, `vercel.json` rewrites when hosted): Cosmos transaction lookups for all eight hashes in the live receipts (each found with code 0, blocks 10,185,500 to 10,192,644; the two refused bids are code-0 transactions whose call was refused), the owner's spending rule (the abstract-account route, snake-case fields), and the committee members' ML-KEM keys for `verifyMember`.
+- **Sealing a bid in the browser works**: the guest agent sealed a bid to the 2-of-3 committee of auction `0xE5fC…be76` (members checked against the chain), 5,828 bytes of `commitBid` calldata, and sent nothing.
+- **No auction was taking bids** at 15:00 UTC: the factory's four auctions had all closed. The playground rehearses on the last one, read from the chain and treated as open, and says so.
+- **ML-DSA-87 in the page:** checking the live agent's 21 receipts takes about 30 ms in Chromium on a laptop.

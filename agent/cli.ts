@@ -37,7 +37,8 @@ import { FileAuctionReader } from "./auction-file.ts";
 import { initAgentKeys, loadAgentIdentity } from "./identity.ts";
 import { ChainPqKeySource, StaticPqKeySource, type PqKeySource } from "./keysource.ts";
 import { defaultPlanners, type Planner } from "./planner/index.ts";
-import { FileSink, ReceiptLog, verifyReceipts } from "./receipts.ts";
+import { ReceiptLog, verifyReceipts } from "./receipts.ts";
+import { FileSink } from "./receipt-file.ts";
 import { FileMandateStore } from "./store.ts";
 
 type AgentPaths = ReturnType<typeof agentPaths>;

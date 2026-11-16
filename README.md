@@ -2,6 +2,8 @@
 
 An AI agent that bids in Peal sealed auctions for its owner, inside limits that QoreChain itself enforces. It acts only on mandates the owner has signed with a post-quantum key (ML-DSA-87) and sealed to the agent (ML-KEM-1024).
 
+**On the web:** a landing page, the live agent's receipts checked in your browser, and a playground where your own agent runs (`apps/web`, deployable to Vercel; see [On the web](#on-the-web)).
+
 Entry in the **Post-Quantum AI Agents** category of QoreChain's *Build Before Q-Day* developer fest. It is one of three linked entries: [Peal Sealed Auction](https://github.com/Adityaakr/peal-sealed-auction) is the venue, [Peal Tender](https://github.com/Adityaakr/peal-tender) is the treasury that runs buybacks through it, and this repository is the participant. All three use [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit).
 
 > **Status (16 November 2026):** built and tested offline: the mandate channel, the policy clamp, the planner (Claude Opus 5.5 with a rule-based fallback), the signed receipts log, the owner CLI, the relayer, the dashboard, and the bid itself: sealed to the auction's committee with qore-pq-kit's `threshold` module and encoded for Peal Sealed Auction's `commitBid`, then sent either through the owner's smart account or (the fallback) from the agent's own account inside an owner-opened window. The smart-account path is proven on the testnet by spike S2 in qore-pq-kit, and its mechanics now come from qore-pq-kit `v0.4.0`. This repository's own chain-side commands have **not yet run on the testnet**: the accounts are waiting for faucet funds and the auction is not deployed yet. The fUSD (ERC-20) spending limits are the one part S2 did not exercise ([docs/spikes.md](docs/spikes.md)). The default executor is dry-run.
@@ -64,7 +66,11 @@ Layers, from the outside in:
 | `relayer/` | Broadcasts the agent's `MsgExecuteEVM`, refusing anything outside its policy, and reads `success=false` as a final refusal |
 | `dashboard/` | A local, read-only page: the active mandate, what it has committed, and every receipt, verified |
 | `scripts/demo-offline.ts` | The whole flow with throwaway keys in memory, no chain, no funds |
-| `test/` | 215 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
+| `apps/web/` | The web app: landing page, the live agent (its published receipts, verified in the browser, and its transactions, owner key and spending rule read from the chain), and a playground where a visitor's own agent runs; wallet drawer with a guest account, QoreX and MetaMask |
+| `scripts/publish-receipts.ts` | `pnpm web:receipts`: checks the live agent's receipts log and copies it, with the receipt key's public half, into `apps/web/public/live/` |
+| `scripts/web-smoke.ts` | `pnpm web:smoke`: the landing page and the guest-agent flow in headless Chromium |
+| `vercel.json` | Vercel build, the REST and RPC rewrites, and the security headers |
+| `test/` | 221 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -110,6 +116,25 @@ The planner asks Claude Opus 5.5 only when a key is configured, in this order:
 
 Keys are never read from or written to the repository. Tests and CI never call a model (`PEAL_BIDDER_PLANNER=rules` is set for every test run); they replay fixtures, including answers recorded from the real model in `test/fixtures/openrouter-recorded/` (`pnpm record:openrouter <scenario>`). The agent asks the model only when a bid is possible.
 
+## On the web
+
+```sh
+pnpm web            # http://localhost:5173, with the REST and RPC proxy
+pnpm web:build      # apps/web/dist
+pnpm web:smoke      # headless Chromium: landing page, live receipts, guest account, mandate, refusals
+pnpm web:receipts   # publish the live agent's receipts log to the site (after a run)
+```
+
+Three pages:
+
+- **Landing** (`#/`): what the Bidder is, the mechanism (a step rail synced to the drawing), the security evidence from the live run, and the Peal family. It follows the shared design rules in Peal Tender's `docs/design.md`.
+- **The live agent** (`#/agent`): the owner's agent as its receipts tell it. Every line's chain and ML-DSA-87 signature is checked in the browser against the receipt key every mandate pins; each transaction hash is looked up on chain; the owner's key (`pqcKeyStatus`), spending rule and auctions are read live.
+- **Your agent** (`#/try`): a visitor makes a guest account (an owner and its agent, from one recovery phrase in the browser), writes a mandate within small limits (at most 20 fUSD), signs it with ML-DSA-87 and seals it with ML-KEM-1024. The agent, which is this repository's code running in the browser, opens it, checks the signature, plans with the rule-based planner, clamps, and seals a bid to the auction's real committee, then stops: nothing is sent yet. "Try to break it" forges, tampers with, replays, expires and misdirects mandates, and feeds the agent an injected plan; each is refused or clamped, with a signed receipt.
+
+The owner's OpenRouter key never reaches the site: the public planner is the rule-based one, and there is no server-side planner endpoint. When no Peal auction is taking bids, the playground rehearses on the last demo auction (read from the chain, treated as open). Visitors fund their guest account themselves, from the QoreChain faucet or QoreX.
+
+**Hosting on Vercel:** import the repository in Vercel; `vercel.json` sets everything (pnpm install, `pnpm web:build`, output `apps/web/dist`, the rewrites of `/api/qore/rest` and `/api/qore/rpc` to the public testnet endpoints, which send no CORS headers, and the security headers). No environment variable is needed, and none should be added: the site holds no key.
+
 ## Tests
 
 - **Mandate verification** (`test/inbox.test.ts`, 35 cases): a valid mandate, and each refusal: forged signature, the owner's public key with someone else's signature, an ML-DSA key other than the one on chain, a right classical key with a wrong ML-DSA signature, tampered limits, tampered instructions, expired, not yet valid, replayed, rolled back, other chain, other EVM chain id, a signature made for another chain, an envelope sealed under another chain, sealed to another agent, another agent's mandate forwarded, an envelope bound to another owner, an owner the agent does not serve, classical-only signature, no key on chain, RPC failure, non-canonical text, duplicate keys, inconsistent limits, an extra field, a wrong receipt key, malformed envelopes and payloads, an envelope bound to another purpose, an instruction signed in the future, and instruction fields that disagree with the mandate inside.
@@ -126,6 +151,8 @@ Keys are never read from or written to the repository. Tests and CI never call a
 - **Serve and lock** (`test/serve.test.ts`): a tick drains the inbox (junk refused, mandates accepted), plans once and logs one line with no secret in it; the planner is not asked once the limits are used up or no auction is open; claims land on the same receipts chain; a second process is refused the lock, a dead one's lock is taken over; two logs on one file extend one chain, and a truncated or foreign log stops the agent.
 - **Claims** (`test/claims.test.ts`): only the bidder's own bids (a node returning someone else's is caught by `getBid`), each unclaimed bid claimed once with a receipt, nothing claimed before the auction is settled, failed or cancelled.
 - **CLI and dashboard** (`test/cli.test.ts`, `test/dashboard.test.ts`): the owner-to-agent flow through the files, restart and replay; fUSD amounts parsed exactly; untrusted strings escaped on the page.
+- **The published receipts** (`test/web-live.test.ts`): only public material is published, the log verifies, one edited line breaks it, and the figures the landing page shows.
+- **Web smoke** (`pnpm web:smoke`, CI job `web`): in headless Chromium, the landing page renders with no sideways scroll at 1280, 768 and 390 px and the live receipts verify in the page; a guest account is created; its agent accepts a mandate, plans, clamps and seals a bid to the real committee; a forged, a tampered, a replayed, an expired and a misdirected mandate are refused with their codes; an injected plan is clamped. It reads the public testnet and sends nothing.
 
 The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of API responses (each says so in its `provenance` field), because the owner's API key is not available yet. Recorded responses will join them in `test/fixtures/claude-recorded/`.
 
@@ -161,12 +188,15 @@ Two findings came out of the run: a token listed in the spending rule can also b
 3. ~~Bid sealing and encoding for Peal Sealed Auction; chain reader; fallback window executor~~ (PR 3), tested offline against a fake chain.
 4. ~~Claims after settlement; the testnet demo script~~ (PR 4); the demo's `--check` runs read-only today.
 5. ~~The smart-account path: spike S2~~ settled in qore-pq-kit; the transport now comes from its `v0.4.0` `smart-account` module (PR 5). Design R1's fallback is retired.
-6. `pnpm demo:testnet` against Peal Sealed Auction's deployed contracts (expected 22 to 23 November): one landed bid and each refusal, with transaction hashes.
+6. ~~`pnpm demo:testnet` against Peal Sealed Auction's deployed contracts~~: done 16 November (PR 11).
+7. ~~The web app: landing page, the live agent, a guest agent in the browser; Vercel~~ (this PR).
+8. The guest agent on chain: the guest owner links its agent's key with a spending rule capped at the page's limits, and the agent bids through it in an open demo auction. Needs a funded guest account and an open auction.
 
 ## Prior work
 
 The design comes from the author's own earlier project, **Peal** (private, started 6 July 2026, Apache-2.0). Everything in this repository was written during the fest. Rules ported from Peal, rewritten here:
 
+- The look of the web app: Peal's design language (colours, type, components, the landing-page structure), as restated in Peal Tender's `docs/design.md` (design report, section 7). The wallet drawer, guest account, QoreX and MetaMask modules and the Vercel proxy are adapted from Peal Tender's web app, each file saying so.
 - The auction price and escrow arithmetic in `agent/auction.ts` (`price(tick) = reservePrice + tick × tickSize`, escrow rounded up) follows Peal's `contracts/src/auctionkit/AuctionMath.sol`, so the agent computes the same escrow as the auction contract.
 
 ## Credits
@@ -174,6 +204,7 @@ The design comes from the author's own earlier project, **Peal** (private, start
 - [@qorechain/qoresign](https://www.npmjs.com/package/@qorechain/qoresign) 0.2.0 (hybrid message signatures) and [@qorechain/qoreseal](https://www.npmjs.com/package/@qorechain/qoreseal) 0.1.0 (ML-KEM-1024 envelopes), QoreChain's kits.
 - [qore-pq-kit](https://github.com/Adityaakr/qore-pq-kit) `v0.4.0`, by git tag: network settings, hybrid-signed broadcasts, EVM transactions, secret files, fUSD conversion, the `messaging` module (the mandate's signature and envelope), the `threshold` module (sealing a bid to a committee, checking members) and the `smart-account` module (linking the agent's key, signing its calls, relaying).
 - [@qorechain/sdk](https://www.npmjs.com/package/@qorechain/sdk) and [@qorechain/evm](https://www.npmjs.com/package/@qorechain/evm) 0.14.0: windows, linked keys, spending rules, `MsgExecuteEVM`.
+- [Vite](https://vite.dev) for the web app, [Playwright](https://playwright.dev) (`playwright-core`) for its smoke run; fonts Satoshi (Fontshare) and Josefin Sans (Google Fonts).
 - [@anthropic-ai/sdk](https://www.npmjs.com/package/@anthropic-ai/sdk) for Claude; [viem](https://viem.sh) for the EVM calls; [@noble/hashes](https://github.com/paulmillr/noble-hashes) and [@scure/bip39](https://github.com/paulmillr/scure-bip39); [Vitest](https://vitest.dev) and [fast-check](https://fast-check.dev) for tests.
 
 How AI was used to build this: [AI_USAGE.md](AI_USAGE.md). Security assumptions and what is not protected: [THREAT_MODEL.md](THREAT_MODEL.md).

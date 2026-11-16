@@ -22,3 +22,19 @@ jobs:
       - run: pnpm typecheck
       # No ANTHROPIC_API_KEY here: the live planner tests are skipped and nothing is spent.
       - run: pnpm test
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm web:build
+      # Headless Chromium for the smoke run; it reads the public testnet and sends nothing.
+      - run: pnpm exec playwright-core install --with-deps --only-shell chromium
+      - run: pnpm web:smoke
