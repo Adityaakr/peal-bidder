@@ -60,7 +60,7 @@ The addresses to list on the project page are the Bidder's three accounts (owner
 | **QoreSeal and the encryption key registry** | yes | the agent account's `MsgRegisterKEMKey` | verifies today |
 | **Smart accounts and spending rules** | yes | the owner's spending rule and the agent's linked key; every bid is a `MsgExecuteEVM` under it | verifies today |
 | **Test tokens fUSD, fETH, fBTC** | yes | fUSD is the budget: `MsgConvertCoin`, `approve`, escrow, claims | verifies today |
-| **AMM pools** | yes | The owner tops up the fUSD budget from QOR on the fUSD/QOR pool (pool 2), with a minimum-out computed from the pool's reserves: `pnpm owner topup` | follow-up PR, one small swap |
+| **AMM pools** | yes | The owner tops up the fUSD budget from QOR on the fUSD/QOR pool, priced by the chain's own quote with a minimum out, and converts the minimum to ERC-20 in the same transaction: `pnpm owner topup` (`owner-cli/topup.ts`). Live: `3FF7C996…150D` | in use; verifies on the owner's address |
 | **MCP server or qore CLI** | yes | `@qorechain/mcp` in `package.json`; the agent's audit | in use |
 | **QoreScan** | yes | `@qorechain/qorescan` in `package.json`; the CBOM in `docs/cbom/` | in use |
 | **Sign In With QoreChain** | yes | The owner pauses or resumes a running agent with a SIWQ message the agent verifies against the owner's on-chain key (`agent/control.ts`). Off chain by design, so DECLARED | in use |

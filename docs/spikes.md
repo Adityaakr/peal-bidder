@@ -176,3 +176,12 @@ Run: `pnpm cbom` (QoreScan 0.1.0 through its npm launcher; the binary is downloa
 - **Chain:** 24 protocol features reported, among them `pqc-sign-bytes-v2`, `pqc-kem-registry`, `evm-pqc-window-targets` and `pqc-possession-flag`. The validators' consensus keys are Ed25519 (4 active).
 - **Accounts:** the owner, agent account and relayer each have a hybrid ML-DSA-87 key; QoreScan's evidence line names the algorithm "dilithium5", the chain's older name for it. The agent account also has its ML-KEM-1024 key in the KEM registry.
 - The threat model gained a "Cryptographic inventory" section from this, including what an impersonated endpoint could and could not do.
+
+### 2026-11-16 (UTC): the owner's budget top-up on the AMM
+
+Run: `pnpm owner topup --qor 2` from the owner's account, one hybrid transaction `3FF7C996D08CA78DEB15ABB6D47152BFDCF5279AD287E8F2D2AFAAB05BB4150D` at block 10,217,816.
+
+- **The chain quotes swaps over REST** at `GET /qorechain/amm/v1/quote/exact_in?pool_id=…&denom_in=…&amount_in=…`. It answers `{amount_out, fee, impact_bps}`; the guessed routes `quote_exact_in` and `pools/{id}/…` answer "Not Implemented". For 2 QOR on pool 2 (fUSD/QOR) the quote was 136,002 µfUSD with a 6,000 uqor fee (30 bps) and an impact of 3 bps. The `amm_swap` event paid exactly that, and reports the 10 bps protocol fee as part of the 30 (`protocol_fee` 2,000).
+- **Swap and conversion in one transaction work**: `MsgSwapExactIn` (minimum out 134,641, the quote less 1%) then `MsgConvertCoin` of that minimum to the owner's 0x address. The owner's ERC-20 fUSD went from 354,352,942 to 354,487,583 (+134,641). The 1,361 above the minimum stayed as bank coins.
+- Module parameters: `swap_fee_bps` 30, `protocol_fee_bps` 10, `max_swap_impact_bps` 500.
+- Cost: 2 QOR swapped and a 0.15 QOR fee. `qore pq status` verifies the transaction's ML-DSA-87 layer (sign-bytes v2).

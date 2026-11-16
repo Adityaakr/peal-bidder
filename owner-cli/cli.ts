@@ -13,6 +13,8 @@
  *   pnpm owner link ...              link the agent's key to the owner's account under a spending rule
  *   pnpm owner rules ...             replace the spending rule
  *   pnpm owner revoke                revoke the agent's key at once
+ *   pnpm owner topup --qor 2 [--slippage-bps 100] [--max-impact-bps 100] [--no-convert] [--dry-run]
+ *                                    swap QOR for fUSD on the AMM and convert the minimum out to ERC-20, in one transaction
  *   pnpm owner pause|resume [--agent-url http://127.0.0.1:8789]
  *                                    pause or resume the running agent, signed in with Sign In With QoreChain
  *
@@ -34,6 +36,8 @@ import {
   approveQuote,
   closeWindow,
   convertQuote,
+  erc20Balance,
+  sendOwnerFestMsgs,
   transferQuote,
   openWindow,
   registerAgentKem,
@@ -42,6 +46,7 @@ import {
   signAgentCard,
 } from "./chain.ts";
 import { sendControl } from "./control.ts";
+import { UQOR, findPool, planTopup, quoteExactIn, topupMsgs } from "./topup.ts";
 import { sealMandate, signMandate } from "./mandate.ts";
 import { chainRecipient, offlineRecipient, readCard } from "./recipient.ts";
 import {
@@ -231,6 +236,33 @@ export async function run(): Promise<void> {
       out({ tx: await sendOwnerMsgs(owner, [revokeAgentMsg(owner.cosmos, accountAddress(op.agentAccount).evm)]) });
       return;
     }
+    case "topup": {
+      const owner = await loadAccount(op.owner);
+      const rest = network().rest;
+      const pool = await findPool(rest, FUSD_DENOM, UQOR);
+      const quote = await quoteExactIn(rest, pool.id, UQOR, units(flags, "qor", 6));
+      const plan = planTopup(quote, { slippageBps: int(flags, "slippage-bps", 100), maxImpactBps: int(flags, "max-impact-bps", 100) });
+      const convert = flags["no-convert"] !== true;
+      const msgs = topupMsgs(owner.cosmos, owner.evm, FUSD_DENOM, plan, convert);
+      const summary = {
+        pool: pool.id,
+        qorIn: quote.amountIn.toString(),
+        quotedFusdOut: quote.amountOut.toString(),
+        fee: quote.fee.toString(),
+        impactBps: quote.impactBps,
+        minOut: plan.minOut.toString(),
+        convertedToErc20: convert ? plan.minOut.toString() : "0",
+        messages: msgs.map((m) => m.typeUrl),
+      };
+      if (flags["dry-run"] === true) {
+        out({ dryRun: true, ...summary });
+        return;
+      }
+      const before = await erc20Balance(FUSD, owner.evm);
+      const tx = await sendOwnerFestMsgs(owner, msgs);
+      out({ ...tx, ...summary, erc20Before: before.toString(), erc20After: (await erc20Balance(FUSD, owner.evm)).toString() });
+      return;
+    }
     case "pause":
     case "resume": {
       const owner = qoreSignKeys(await loadAccount(op.owner));
@@ -246,7 +278,7 @@ export async function run(): Promise<void> {
       return;
     }
     default:
-      throw new Error("usage: pnpm owner init|status|register|register-agent|mandate|window|convert|approve|fund-agent|link|rules|revoke|pause|resume");
+      throw new Error("usage: pnpm owner init|status|register|register-agent|mandate|window|convert|approve|fund-agent|link|rules|revoke|topup|pause|resume");
   }
 }
 
