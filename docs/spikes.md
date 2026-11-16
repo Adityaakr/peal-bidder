@@ -159,3 +159,11 @@ Run: `pnpm agent audit --published --signers qor16tsewlj6jpt4v2esmrhuk7z2xems6e0
 - All 21 published receipts verify; they name 8 transactions (4 bids, 2 refused bids, 3 claims; one of each scene that sent something). For each, `get_transaction` agrees with the recorded outcome, the signer is the relayer, and `get_pq_status` verifies the hybrid ML-DSA-87 layer against the relayer's registered key with sign-bytes v2. The owner's key reads registered, ML-DSA-87, possession proven. The agent's own log (`pnpm agent audit` on the agent folder) gives the same result.
 - **`get_transaction` decodes a linked-key refusal.** A refused `MsgExecuteEVM` is a code-0 transaction; the tool reports `success: false` and puts the chain's reason in `execution_failures[].reason` (for example "daily limit … exceeded: spent 201000000, remaining 0"), and adds that the nonce is consumed. So the audit needs no decoding of its own.
 - The tools answer from the public endpoints (REST, consensus RPC); 10 upstream requests for one landed and one refused transaction plus the owner. Recorded for the tests with `pnpm record:mcp-audit`.
+
+### 2026-11-16 (UTC): the owner's brake, live
+
+Run at about 21:38 UTC: the live agent's folder served in dry-run (`pnpm agent serve --executor dry-run --interval 4 --max-ticks 6 --control-port 8789`), then `pnpm owner pause`, `GET /siwq/status`, `pnpm owner resume` with the owner's real keys. No transaction was sent.
+
+- The agent read the owner's ML-DSA-87 key from `pqcKeyStatus` (possession proven) and accepted both Sign In With QoreChain messages. The ticks in between logged `{"idle":"paused by the owner"}`, and after the resume the agent went back to its own reason ("the mandate has expired").
+- Each change is a `control` receipt. The live log went from 21 to 23 receipts, and `pnpm agent receipts` verifies the chain and every signature.
+- QoreSign 0.2.0's `signSiwq` refuses to sign for an address the classical key does not control. `verifySiwq` with `requirePq` refuses a sign-in without its ML-DSA-87 half, and one whose ML-DSA-87 half comes from a key other than the registered one: the case of a stolen classical key paired with the thief's own ML-DSA-87 key (`test/control.test.ts`).

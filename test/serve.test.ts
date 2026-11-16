@@ -118,6 +118,23 @@ describe("serve", () => {
     expect(JSON.stringify(lines)).not.toMatch(/secretKey|privateKey|mnemonic/i);
   });
 
+  it("paused by the owner: still reads the inbox, but makes no planning round, so no bid; resumes when unpaused", async () => {
+    const d = dir();
+    const inbox = join(d, "inbox");
+    mkdirSync(inbox);
+    writeFileSync(join(inbox, "1.qoreseal"), envelope(1));
+    const { agent } = setup(join(d, "receipts.jsonl"));
+    let paused = true;
+    const lines: Record<string, unknown>[] = [];
+    await serve({ agent, inbox, paused: () => paused, log: (l) => lines.push(l) }, { intervalSeconds: 0, maxTicks: 2 });
+    expect(lines[0]?.inbox).toEqual([expect.objectContaining({ file: "1.qoreseal", accepted: expect.any(String) })]);
+    expect(lines.map((l) => l.step)).toEqual([{ idle: "paused by the owner" }, { idle: "paused by the owner" }]);
+    expect(agent.state.ledger.bids).toBe(0);
+    paused = false;
+    await serve({ agent, inbox, paused: () => paused, log: (l) => lines.push(l) }, { intervalSeconds: 0, maxTicks: 1 });
+    expect((lines[2]?.step as Record<string, unknown>).decision).toMatchObject({ bid: AUCTION_A });
+  });
+
   it("does not ask the planner when no auction is taking bids", async () => {
     const d = dir();
     const { agent } = setup(join(d, "receipts.jsonl"), [auction({ commitOpen: false })]);

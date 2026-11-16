@@ -50,6 +50,7 @@ Layers, from the outside in:
 | `agent/policy.ts`, `agent/auction.ts` | The deterministic clamp and the auction's price arithmetic |
 | `agent/planner/` | Claude Opus 5.5 planner, rule-based planner, and `decide` (planner then policy) |
 | `agent/audit.ts`, `agent/qorechain-mcp.ts` | `pnpm agent audit`: the receipts checked against the chain through the QoreChain MCP server (`@qorechain/mcp`, run in process): each transaction's outcome as recorded, its hybrid ML-DSA-87 layer verified against the signer's registered key, its signer, an `unknown` outcome resolved, and the owner's key with proof of possession. `--published` audits the live agent's published log, with no key |
+| `agent/control.ts`, `owner-cli/control.ts` | The owner's brake: `pnpm owner pause` / `resume` sign in to the running agent with **Sign In With QoreChain** (QoreSign's SIWQ); the agent checks the message against the owner's ML-DSA-87 key on chain and stops planning, instantly and for free, until resumed. Each change is a signed receipt |
 | `.mcp.json` | The QoreChain MCP server for the owner's own assistant (Claude Code and other MCP clients): the same read-only tools the audit uses. `pnpm qore …` runs them from a terminal (`@qorechain/qore-cli`) |
 | `agent/receipts.ts` | The receipts log: hash-chained, signed with the agent's ML-DSA-87 receipt key (qorechain-pqc's `mldsa87`; a whole log is checked with `batchVerify`) |
 | `agent/agent.ts` | The loop: receive, read auctions, plan, clamp, submit, receipt; rebuilds its ledger from the receipts after a restart |
@@ -72,7 +73,7 @@ Layers, from the outside in:
 | `scripts/publish-receipts.ts` | `pnpm web:receipts`: checks the live agent's receipts log and copies it, with the receipt key's public half, into `apps/web/public/live/` |
 | `scripts/web-smoke.ts` | `pnpm web:smoke`: the landing page and the guest-agent flow in headless Chromium |
 | `vercel.json` | Vercel build, the REST and RPC rewrites, and the security headers |
-| `test/` | 238 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
+| `test/` | 251 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -101,7 +102,8 @@ pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick
 pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 \
   --instructions "Take part in the buyback at a fair price." --deliver
 pnpm agent receive                    # verified against the owner's key on chain
-pnpm agent serve --executor smart-account --interval 60 --claim   # the long-running agent; Ctrl-C stops it cleanly
+pnpm agent serve --executor smart-account --interval 60 --claim --control-port 8789   # the long-running agent; Ctrl-C stops it cleanly
+pnpm owner pause                      # the brake: no new bid until `pnpm owner resume` (Sign In With QoreChain, no transaction)
 # or one round at a time: pnpm agent run --executor smart-account (dry-run is the default executor)
 pnpm agent bids                       # after the close: the agent's bids and what they won
 pnpm agent claim --executor smart-account

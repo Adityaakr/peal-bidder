@@ -13,6 +13,8 @@
  *   pnpm owner link ...              link the agent's key to the owner's account under a spending rule
  *   pnpm owner rules ...             replace the spending rule
  *   pnpm owner revoke                revoke the agent's key at once
+ *   pnpm owner pause|resume [--agent-url http://127.0.0.1:8789]
+ *                                    pause or resume the running agent, signed in with Sign In With QoreChain
  *
  * Keys stay in ~/.qore-peal-bidder/owner (QORE_BIDDER_HOME). Nothing is printed but addresses and hashes.
  */
@@ -39,6 +41,7 @@ import {
   sendOwnerMsgs,
   signAgentCard,
 } from "./chain.ts";
+import { sendControl } from "./control.ts";
 import { sealMandate, signMandate } from "./mandate.ts";
 import { chainRecipient, offlineRecipient, readCard } from "./recipient.ts";
 import {
@@ -228,8 +231,22 @@ export async function run(): Promise<void> {
       out({ tx: await sendOwnerMsgs(owner, [revokeAgentMsg(owner.cosmos, accountAddress(op.agentAccount).evm)]) });
       return;
     }
+    case "pause":
+    case "resume": {
+      const owner = qoreSignKeys(await loadAccount(op.owner));
+      const info = readAgentPublicInfo(agentPaths(home).publicInfo);
+      const answer = await sendControl({
+        owner,
+        agent: info.address,
+        action: cmd,
+        url: str(flags, "agent-url", "http://127.0.0.1:8789"),
+        chainId: network().chainId,
+      });
+      out({ agent: info.address, ...answer, signedIn: "Sign In With QoreChain (secp256k1 + ML-DSA-87), checked by the agent against your key on chain" });
+      return;
+    }
     default:
-      throw new Error("usage: pnpm owner init|status|register|register-agent|mandate|window|convert|approve|fund-agent|link|rules|revoke");
+      throw new Error("usage: pnpm owner init|status|register|register-agent|mandate|window|convert|approve|fund-agent|link|rules|revoke|pause|resume");
   }
 }
 

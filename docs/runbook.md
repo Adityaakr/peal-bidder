@@ -27,6 +27,7 @@ Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/
 | — | Owner | Fallback path (design R1, retired by S2; for comparison only): `pnpm owner fund-agent --amount 500`, `pnpm owner approve --from agent --spender 0x<auction> --amount 500`, `pnpm owner window open --targets 0x<auction> --max-txs 5`, then `pnpm agent run --executor window` | an fUSD transfer, an approval from the agent account, a window | QOR on owner and agent account |
 | — | Owner | `pnpm owner rules ...` (same flags as `link`) | `MsgUpdateSpendingRules` only | step 6 |
 | — | Owner | `pnpm owner revoke` | `MsgRevokeAuthenticator`: the agent's key stops working at once | step 6 |
+| — | Owner | `pnpm owner pause` / `pnpm owner resume` (`--agent-url http://127.0.0.1:8789`) | nothing: a Sign In With QoreChain message to the running agent (`agent serve --control-port 8789`), checked against the owner's ML-DSA-87 key on chain. Paused, the agent reads mandates and claims but places no bid; the state survives a restart | step 4 |
 | — | Anyone | `pnpm owner status`, `pnpm agent status`, `pnpm agent receipts` | nothing | — |
 | 15 | Owner or agent | `pnpm agent audit --signers qor1<relayer>,qor1<agent-account>` (or `--published` for the published log): each receipt's transaction read through the QoreChain MCP server; exits 1 on a mismatch, a foreign signer or a missing ML-DSA-87 layer | nothing | the receipts log |
 | — | Anyone | `pnpm qore tx get <hash>`, `pnpm qore pq status <hash or address>`: one check by hand, the same tools as the audit | nothing | — |
