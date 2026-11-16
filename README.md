@@ -51,6 +51,8 @@ Layers, from the outside in:
 | `agent/planner/` | Claude Opus 5.5 planner, rule-based planner, and `decide` (planner then policy) |
 | `agent/audit.ts`, `agent/qorechain-mcp.ts` | `pnpm agent audit`: the receipts checked against the chain through the QoreChain MCP server (`@qorechain/mcp`, run in process): each transaction's outcome as recorded, its hybrid ML-DSA-87 layer verified against the signer's registered key, its signer, an `unknown` outcome resolved, and the owner's key with proof of possession. `--published` audits the live agent's published log, with no key |
 | `agent/control.ts`, `owner-cli/control.ts` | The owner's brake: `pnpm owner pause` / `resume` sign in to the running agent with **Sign In With QoreChain** (QoreSign's SIWQ); the agent checks the message against the owner's ML-DSA-87 key on chain and stops planning, instantly and for free, until resumed. Each change is a signed receipt |
+| `owner-cli/topup.ts` | `pnpm owner topup --qor 2`: top up the fUSD budget from QOR on the chain's **AMM**, priced by the chain's own quote, with a minimum out and an impact limit; the swap and the conversion of the minimum to ERC-20 fUSD are one hybrid transaction |
+| `common/cbom.ts`, `scripts/cbom.ts`, `docs/cbom/` | `pnpm cbom`: the Bidder's cryptographic inventory with **QoreScan** (`@qorechain/qorescan`): a CycloneDX 1.6 CBOM of the testnet, the three accounts' keys and the endpoints' TLS, summarised in `docs/cbom/README.md`; the threat model's "Cryptographic inventory" is checked against it by a test |
 | `.mcp.json` | The QoreChain MCP server for the owner's own assistant (Claude Code and other MCP clients): the same read-only tools the audit uses. `pnpm qore …` runs them from a terminal (`@qorechain/qore-cli`) |
 | `agent/receipts.ts` | The receipts log: hash-chained, signed with the agent's ML-DSA-87 receipt key (qorechain-pqc's `mldsa87`; a whole log is checked with `batchVerify`) |
 | `agent/agent.ts` | The loop: receive, read auctions, plan, clamp, submit, receipt; rebuilds its ledger from the receipts after a restart |
@@ -73,7 +75,7 @@ Layers, from the outside in:
 | `scripts/publish-receipts.ts` | `pnpm web:receipts`: checks the live agent's receipts log and copies it, with the receipt key's public half, into `apps/web/public/live/` |
 | `scripts/web-smoke.ts` | `pnpm web:smoke`: the landing page and the guest-agent flow in headless Chromium |
 | `vercel.json` | Vercel build, the REST and RPC rewrites, and the security headers |
-| `test/` | 251 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
+| `test/` | 261 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -97,6 +99,7 @@ pnpm agent init                       # the agent makes its QoreSeal and receipt
 pnpm owner register                   # ML-DSA-87 keys on chain
 pnpm owner register-agent             # the agent's ML-KEM key on chain, and its signed recipient card
 pnpm owner convert --amount 500       # the faucet pays fUSD as bank coins; the auction needs the ERC-20
+pnpm owner topup --qor 2              # more budget: QOR to fUSD on the AMM, converted to ERC-20 in the same transaction
 pnpm owner approve --spender 0x<auction> --amount 500
 pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40   # spending rule + linked key
 pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 \

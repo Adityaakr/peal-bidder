@@ -25,7 +25,8 @@
     "web:receipts": "tsx scripts/publish-receipts.ts",
     "web:smoke": "tsx scripts/web-smoke.ts",
     "qore": "qore",
-    "record:mcp-audit": "tsx scripts/record-mcp-audit.ts"
+    "record:mcp-audit": "tsx scripts/record-mcp-audit.ts",
+    "cbom": "tsx scripts/cbom.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0",
@@ -36,6 +37,7 @@
     "@qorechain/mcp": "0.1.1",
     "@qorechain/pqc": "0.2.3",
     "@qorechain/qore-cli": "0.1.1",
+    "@qorechain/qorescan": "0.1.0",
     "@qorechain/qoreseal": "0.1.0",
     "@qorechain/qoresign": "0.2.0",
     "@qorechain/qorex-types": "0.1.0",
