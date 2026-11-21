@@ -117,7 +117,7 @@ async function setup() {
     executor,
   });
   const envelope = sealMandate({
-    signed: signMandate(mandate, { address: owner.address, classicalKey: owner.classicalKey, pqKey: owner.pqKey }),
+    signed: signMandate(mandate, { address: owner.address, classicalKey: owner.classicalKey, pqKey: owner.pqKey }, new Date((NOW - 30) * 1000)),
     mandate,
     recipient: agentKeys.recipient,
   }).envelope;

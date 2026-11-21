@@ -13,7 +13,7 @@ import { parseAddress } from "@qorechain/qoresign";
 import { fetchAuthNonce, resolveEvmAuthDigestVersion } from "@qorechain/sdk";
 import { createPublicClient, createWalletClient, http, type Address, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import type { Network } from "../common/network.ts";
+import { PEAL_REGISTRY_FROM_BLOCK, type Network } from "../common/network.ts";
 import { DryRunExecutor, type BidExecutor } from "./agent.ts";
 import { SealedBidEncoder } from "./bid-encoder.ts";
 import type { AgentIdentity } from "./identity.ts";
@@ -56,6 +56,7 @@ export async function makeExecutor(
       evmChainId: net.evmChainId,
       sealChainId: net.chainId,
       bidder: ownerEvm,
+      fromBlock: PEAL_REGISTRY_FROM_BLOCK,
       ...(ctx.gasLimit ? { gasLimit: ctx.gasLimit } : {}),
     });
     return new SmartAccountExecutor({
@@ -78,6 +79,7 @@ export async function makeExecutor(
     evmChainId: net.evmChainId,
     sealChainId: net.chainId,
     bidder: account.address,
+    fromBlock: PEAL_REGISTRY_FROM_BLOCK,
     ...(ctx.gasLimit ? { gasLimit: ctx.gasLimit } : {}),
   });
   return new WindowExecutor({

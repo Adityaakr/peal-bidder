@@ -52,7 +52,7 @@ function setup(opts: { sink?: MemorySink; planners?: Planner[]; executor?: BidEx
 
 function envelope(nonce = 1, maxBids = 5) {
   const m = sampleMandate(owner, agentKeys, { nonce, maxBids });
-  return sealMandate({ signed: signMandate(m, ownerKeys), mandate: m, recipient: agentKeys.recipient }).envelope;
+  return sealMandate({ signed: signMandate(m, ownerKeys, new Date((NOW - 30) * 1000)), mandate: m, recipient: agentKeys.recipient }).envelope;
 }
 
 const landed: BidExecutor = { submit: async () => ({ status: "landed", txHash: "0xabc" }) };

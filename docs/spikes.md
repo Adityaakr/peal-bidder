@@ -185,3 +185,11 @@ Run: `pnpm owner topup --qor 2` from the owner's account, one hybrid transaction
 - **Swap and conversion in one transaction work**: `MsgSwapExactIn` (minimum out 134,641, the quote less 1%) then `MsgConvertCoin` of that minimum to the owner's 0x address. The owner's ERC-20 fUSD went from 354,352,942 to 354,487,583 (+134,641). The 1,361 above the minimum stayed as bank coins.
 - Module parameters: `swap_fee_bps` 30, `protocol_fee_bps` 10, `max_swap_impact_bps` 500.
 - Cost: 2 QOR swapped and a 0.15 QOR fee. `qore pq status` verifies the transaction's ML-DSA-87 layer (sign-bytes v2).
+
+### 2026-11-21 (UTC): five days on, the block budget no longer reached the committee
+
+At block 10,479,847 (07:10 UTC) the committee set's `MemberJoined` events (block 10,183,212) sat 296,635 blocks below the head, past the 250,000-block budget the log reader counted back from the head, and an explicit `fromBlock` could not lower that floor. So the playground could no longer seal a bid to the committee (it fell back to "could not be sealed here"), the CLI agent's encoder would have failed the same way, and the playground spent about two minutes on 219 RPC calls reading the factory's 8 auctions, each name lookup scanning 25 windows and finding nothing. Measured block rate: 294,347 blocks in 425,678 s, one every 1.45 s.
+
+Fixed in `agent/logs.ts`: `scanForwards` reads up from the registry's deployment block (`PEAL_REGISTRY_FROM_BLOCK`, 10,183,000; the joins are in the first window), and `blockNear` estimates the block at the auction's `startTime` (two `getBlock` reads, then one correction: 2 s off for the demo auction), so the `AuctionCreated` lookup starts there instead of at the head. The web app reads the factory's auctions side by side. The playground now loads its auction in about 6 s with 78 RPC calls, names verified, and seals to the real 2-of-3 committee again; `pnpm web:smoke` now fails if it cannot.
+
+Two tests also started failing on 18 November: they signed mandates with the real clock against a fixed `NOW` of 18 November 08:53 UTC, so every mandate signed after that read as signed in the future (`agent.test.ts`, `e2e-local.test.ts`). They now sign at `NOW - 30 s`, like the others.

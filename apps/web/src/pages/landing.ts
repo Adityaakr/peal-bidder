@@ -451,7 +451,7 @@ function requirements(): HTMLElement {
           h("tbody", ...rows.map(([r, how, code, chain]) => h("tr", h("th", { scope: "row" }, r), h("td", how), h("td.req-code", ...code), h("td.req-chain", ...chain)))),
         ),
       ),
-      h("p.run-source", "Full hashes and the chain's refusal texts: ", h("a", { href: `${REPO}/blob/main/docs/spikes.md`, target: "_blank", rel: "noopener" }, "docs/spikes.md"), ". Tests: ", h("span.mono", "pnpm test"), ", 221 offline."),
+      h("p.run-source", "Full hashes and the chain's refusal texts: ", h("a", { href: `${REPO}/blob/main/docs/spikes.md`, target: "_blank", rel: "noopener" }, "docs/spikes.md"), ". Tests: ", h("span.mono", "pnpm test"), `, ${TEST_COUNT} offline.`),
     ),
   );
 }

@@ -94,14 +94,9 @@ export async function factoryAuctions(limit = 12): Promise<{ now: number; auctio
   const n = Number(count);
   const offset = Math.max(0, n - limit);
   const page = await evm.readContract({ address: FACTORY, abi: auctionFactoryAbi, functionName: "auctionsPaged", args: [BigInt(offset), BigInt(limit)] });
-  const out: AuctionSummary[] = [];
-  for (const a of [...page].reverse()) {
-    try {
-      out.push(await auctionSummary(a, now));
-    } catch {
-      // an unreadable auction is left out
-    }
-  }
+  // Read side by side; an unreadable auction is left out.
+  const read = await Promise.allSettled([...page].reverse().map((a) => auctionSummary(a, now)));
+  const out = read.flatMap((r) => (r.status === "fulfilled" ? [r.value] : []));
   return { now, auctions: out };
 }
 
