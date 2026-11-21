@@ -46,7 +46,7 @@ From the approved design (decisions of 15 to 16 November 2026):
 - A first agent-loop test expected the "bid count used up" refusal but hit "budget used up" first, because five maximum-size bids exhaust the budget exactly. The test now uses a smaller bid count so the case it names is the one it checks.
 - The agent first wrote a guessed Tendermint RPC URL into the network config; it removed it before committing, since nothing used it and it had not been checked.
 
-**What is synthetic, stated plainly**: the Claude response fixtures are hand-written in the shape of API responses, because the API key is not available yet; each says so in its `provenance` field. `scripts/record-claude-fixtures.ts` will record real ones.
+**What is synthetic, stated plainly**: the Claude response fixtures in `test/fixtures/claude/` are hand-written in the shape of API responses; each says so in its `provenance` field. One answer recorded from the real model through OpenRouter is in `test/fixtures/openrouter-recorded/`, and the live run's five planning rounds, with Claude's own words, are in the published receipts.
 
 **Human decisions in this step**: none beyond the design decisions above; the pull request awaits the owner's review.
 
