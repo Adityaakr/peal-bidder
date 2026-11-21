@@ -1,0 +1,1 @@
+Each bid passes four checks. The agent verifies the mandate against the owner's key on Core Chain. Claude Opus five point five proposes a price, and reads the auction's text as data. A fixed policy clamps that proposal to the mandate. Then the chain enforces the limits again, through a spending rule only the owner can change.

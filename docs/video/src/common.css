@@ -1,0 +1,43 @@
+/* Peal Bidder identity (apps/web/DESIGN.md), set for a 1920x1080 frame. */
+#root {
+  position: absolute; inset: 0; overflow: hidden;
+  background: #f3f5f6; color: #0b1320; font-family: "IBM Plex Sans", sans-serif;
+  --page: #f3f5f6; --surface: #ffffff; --ink: #0b1320; --ink-2: #3a4656; --muted: #667180;
+  --rule: #dde2e6; --rule-strong: #c7ced5; --accent: #0369a1; --accent-weak: #e8f3fa;
+  --red: #c9261c; --red-weak: #fdf1f0; --green: #12804a; --green-weak: #effaf3;
+  --console: #0d141c; --console-text: #e3e8ee; --console-muted: #8996a5; --console-line: #223040;
+  --console-ok: #5fd39a; --console-bad: #ff7a70; --console-agent: #6cc3f0;
+}
+#root * { box-sizing: border-box; }
+.stage { position: absolute; inset: 0; }
+.mono { font-family: "IBM Plex Mono", monospace; font-variant-numeric: tabular-nums; }
+/* The line that says what the shot shows: Plex Sans Condensed, like the site's titles. */
+.say {
+  position: absolute; left: 120px; top: 64px; width: 1680px;
+  font-family: "IBM Plex Sans Condensed", sans-serif; font-weight: 600;
+  font-size: 60px; line-height: 1.08; letter-spacing: -0.01em; color: var(--ink);
+}
+.say .lim { color: var(--red); }
+.w { display: inline-block; }
+/* A real screen in a clipping viewport; the camera moves .cam inside it. */
+.view {
+  position: absolute; left: 120px; top: 196px; width: 1680px; height: 820px; overflow: hidden;
+  background: var(--page); border: 1px solid var(--rule-strong); border-radius: 14px;
+  box-shadow: 0 2px 6px rgba(11, 19, 32, 0.06);
+}
+.view.full { top: 64px; height: 952px; }
+.cam { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.cam img { display: block; }
+/* Focus frames sit in image coordinates inside .cam and move with it. */
+.hl {
+  position: absolute; border: 3px solid var(--accent); border-radius: 8px;
+  box-shadow: 0 0 0 4000px rgba(243, 245, 246, 0.66); opacity: 0;
+}
+.hl.red { border-color: var(--red); }
+.hl.green { border-color: var(--green); }
+.tag {
+  display: inline-block; font-family: "IBM Plex Mono", monospace; font-size: 26px;
+  letter-spacing: 0.04em; padding: 6px 14px; border-radius: 6px; border: 1.5px solid currentColor;
+}
+.tag.ok { color: var(--green); background: var(--green-weak); }
+.tag.no { color: var(--red); background: var(--red-weak); }

@@ -1,0 +1,1 @@
+And the chain held the line on its own. A bid after the day's limit was spent: refused by the spending rule. A bid over the per-bid limit, with the agent's policy switched off: refused. Three bids landed, and all three were claimed after the auction settled.

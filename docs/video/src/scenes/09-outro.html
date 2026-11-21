@@ -1,0 +1,37 @@
+<!-- {"id":"outro","start":148.9,"dur":15.1} -->
+<style>
+  #s9-lock { position: absolute; left: 120px; top: 170px; height: 92px; opacity: 0; }
+  #s9-title {
+    position: absolute; left: 120px; top: 330px; width: 1500px;
+    font-family: "IBM Plex Sans Condensed", sans-serif; font-weight: 600; font-size: 116px;
+    line-height: 1.04; letter-spacing: -0.015em; color: var(--ink);
+  }
+  #s9-u { position: relative; white-space: nowrap; display: inline-block; }
+  #s9-bar { position: absolute; left: 0; right: 14px; bottom: -4px; height: 8px; background: var(--red); transform-origin: 0 50%; }
+  #s9-repo { position: absolute; left: 120px; top: 690px; font-family: "IBM Plex Mono", monospace; font-size: 38px; color: var(--accent); opacity: 0; }
+  #s9-facts { position: absolute; left: 120px; top: 760px; font-size: 30px; color: var(--ink-2); opacity: 0; }
+  #s9-family { position: absolute; left: 120px; top: 900px; display: flex; gap: 56px; align-items: center; font-size: 28px; color: var(--muted); opacity: 0; }
+  #s9-family img { height: 34px; vertical-align: middle; margin-right: 12px; }
+  #s9-family b { color: var(--ink); font-weight: 600; }
+</style>
+<div class="stage" id="s9-stage">
+  <img id="s9-lock" src="assets/brand/lockup.svg" alt="Peal Bidder" />
+  <div id="s9-title" data-hold data-split>An AI agent that spends inside <span id="s9-u">lines it cannot cross.<i id="s9-bar"></i></span></div>
+  <div id="s9-repo">github.com/Adityaakr/peal-bidder</div>
+  <div id="s9-facts">Apache-2.0 · 268 tests · live on QoreChain testnet qorechain-diana since 16 November 2026</div>
+  <div id="s9-family">
+    <span><img src="assets/brand/auction-mark.svg" alt="" /><b>Peal Sealed Auction</b> the venue</span>
+    <span><img src="assets/brand/tender-mark.svg" alt="" /><b>Peal Tender</b> the treasury</span>
+    <span><img src="assets/brand/mark.svg" alt="" /><b>Peal Bidder</b> the participant</span>
+  </div>
+</div>
+<script>
+  // "Peal Bidder. An AI agent that spends inside lines it cannot cross."
+  inn("#s9-lock", 0.2, { d: 0.5 });
+  words("#s9-title", 1.3, 0.09);
+  tl.fromTo("#s9-bar", { scaleX: 0 }, { scaleX: 1, duration: 0.9, ease: "power2.inOut" }, 3.7);
+  // "Open source, and live on Core Chain's testnet."
+  inn("#s9-repo", 5.4);
+  inn("#s9-facts", 6.2);
+  inn("#s9-family", 8.6);
+</script>

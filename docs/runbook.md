@@ -2,7 +2,7 @@
 
 Every step, in order, with what it costs and who runs it. Commands print addresses and hashes only, never a key.
 
-**Status (16 November 2026):** steps 1, 2, 8, 9 and 12 are tested offline (`--offline`), and step 10's bid path (sealing, encoding, signing, relaying) against a fake chain. The steps that send transactions are written but not yet run from this repository: they wait for faucet funds. The smart-account path itself was proven by spike S2 in qore-pq-kit ([spikes.md](spikes.md)).
+**Status (21 November 2026):** every step has run on the testnet from this repository, on 16 November: account setup, key registration, the agent's recipient card, fUSD conversion, the approval, the link with its spending rule, mandates, bids through the relayer, and claims. The transactions are in [spikes.md](spikes.md) and the README's live-run table. Steps 1, 2, 8, 9 and 12 also run offline (`--offline`).
 
 Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/` (the owner's, the agent account's and the relayer's mnemonics) and `agent/` (the agent account's classical key, the agent's own keys, inbox, receipts, nonces).
 

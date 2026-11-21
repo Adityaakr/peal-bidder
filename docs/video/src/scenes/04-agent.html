@@ -1,0 +1,38 @@
+<!-- {"id":"agent","start":55.9,"dur":20.2} -->
+<style>
+  #s4-ver { left: 148px; top: 282px; width: 564px; height: 282px; }
+  .s4-row { left: 172px; width: 1096px; }
+  #s4-plan { top: 888px; height: 160px; }
+  #s4-inj { top: 1216px; height: 160px; }
+  #s4-forged { top: 1116px; height: 110px; }
+</style>
+<div class="stage" id="s4-stage">
+  <div class="say" id="s4-say" data-split>Live on the testnet. Every decision, signed.</div>
+  <div class="view" id="s4-view">
+    <div class="cam" id="s4-cam" style="width:1440px">
+      <img src="assets/shots/agent.png" width="1440" height="3307" alt="The live agent: 21 receipts verified in the browser" />
+      <div class="hl green" id="s4-ver"></div>
+      <div class="hl s4-row" id="s4-plan"></div>
+      <div class="hl s4-row" id="s4-inj"></div>
+      <div class="hl red s4-row" id="s4-forged"></div>
+    </div>
+  </div>
+</div>
+<script>
+  words("#s4-say", 0.3);
+  // "This ran live on the testnet on November sixteenth."
+  camSet("#s4-cam", [140, 120, 1160, 460], VIEW);
+  inn("#s4-view", 0.3, { d: 0.5 });
+  // "Every decision is a signed receipt, and this page checks all twenty-one of them in your browser."
+  drift("#s4-cam", [170, 140, 1100, 436], VIEW, 0.9, 7.5);
+  hlIn("#s4-ver", 6.3); hlOut("#s4-ver", 8.6);
+  // "Claude planned five bids."
+  camTo("#s4-cam", [160, 870, 1120, 520], VIEW, 8.6, 1.3);
+  hlIn("#s4-plan", 9.6); hlOut("#s4-plan", 11.0);
+  // "When the auction text said, ignore your mandate, Claude said so, and stayed inside it."
+  drift("#s4-cam", [190, 960, 1060, 480], VIEW, 10.0, 6.2);
+  hlIn("#s4-inj", 11.2); hlOut("#s4-inj", 16.2);
+  // "A forged mandate was refused by the agent."
+  hlIn("#s4-forged", 16.4);
+  endScene("#s4-stage");
+</script>

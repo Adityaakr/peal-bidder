@@ -1,0 +1,66 @@
+<!-- {"id":"audit","start":129.2,"dur":19.7} -->
+<style>
+  #s8-con {
+    position: absolute; left: 120px; top: 196px; width: 1680px; height: 700px; opacity: 0;
+    background: var(--console); color: var(--console-text); border-radius: 14px; padding: 40px 52px;
+    font-family: "IBM Plex Mono", monospace; font-size: 29px; line-height: 1.62;
+  }
+  #s8-con .bar { color: var(--console-muted); font-size: 28px; border-bottom: 1px solid var(--console-line); padding-bottom: 16px; margin-bottom: 22px; }
+  #s8-cmd .p { color: var(--console-agent); }
+  .s8-r { display: grid; grid-template-columns: 90px 140px 200px 170px 1fr 90px; opacity: 0; }
+  .s8-r .m { color: var(--console-muted); }
+  .s8-r .ok { color: var(--console-ok); }
+  .s8-r .no { color: var(--console-bad); }
+  #s8-sum { margin-top: 20px; color: var(--console-ok); opacity: 0; }
+  #s8-pq { position: absolute; left: 638px; top: 164px; width: 352px; height: 388px; border: 3px solid var(--console-ok); border-radius: 8px; opacity: 0; }
+  #s8-req { opacity: 0; }
+  .s8-row { left: 148px; width: 1144px; }
+  #s8-h1 { top: 385px; height: 106px; } #s8-h2 { top: 483px; height: 228px; } #s8-h3 { top: 703px; height: 129px; }
+  #s8-all { left: 148px; top: 337px; width: 1144px; height: 494px; }
+</style>
+<div class="stage" id="s8-stage">
+  <div class="say" id="s8-say" data-split>Audited against the chain: 8 of 8.</div>
+  <div id="s8-con">
+    <div class="bar">pnpm agent audit --published · QoreChain MCP server · qorechain-diana · 21 November 2026</div>
+    <div id="s8-cmd"><span class="p">$</span> pnpm agent audit --published</div>
+    <div class="s8-r"><span class="m">#3</span><span>bid</span><span>27CAB8D0</span><span class="ok">landed</span><span class="ok">ML-DSA-87 verified</span><span class="ok">ok</span></div>
+    <div class="s8-r"><span class="m">#7</span><span>bid</span><span>D6F66BD9</span><span class="ok">landed</span><span class="ok">ML-DSA-87 verified</span><span class="ok">ok</span></div>
+    <div class="s8-r"><span class="m">#8</span><span>claim</span><span>99000161</span><span class="ok">landed</span><span class="ok">ML-DSA-87 verified</span><span class="ok">ok</span></div>
+    <div class="s8-r"><span class="m">#9</span><span>claim</span><span>47FB6C58</span><span class="ok">landed</span><span class="ok">ML-DSA-87 verified</span><span class="ok">ok</span></div>
+    <div class="s8-r"><span class="m">#13</span><span>bid</span><span>19A2EF01</span><span class="no">refused</span><span class="ok">ML-DSA-87 verified</span><span class="ok">ok</span></div>
+    <div class="s8-r"><span class="m">#16</span><span>bid</span><span>B1E1DAD2</span><span class="no">refused</span><span class="ok">ML-DSA-87 verified</span><span class="ok">ok</span></div>
+    <div class="s8-r"><span class="m">#19</span><span>bid</span><span>135C6D61</span><span class="ok">landed</span><span class="ok">ML-DSA-87 verified</span><span class="ok">ok</span></div>
+    <div class="s8-r"><span class="m">#20</span><span>claim</span><span>93D74F33</span><span class="ok">landed</span><span class="ok">ML-DSA-87 verified</span><span class="ok">ok</span></div>
+    <div id="s8-sum">ok 8 · mismatch 0 · each outcome as the receipt recorded it</div>
+    <div id="s8-pq"></div>
+  </div>
+  <div class="view" id="s8-req">
+    <div class="cam" id="s8-cam" style="width:1440px">
+      <img src="assets/shots/requirements.png" width="1440" height="983" alt="The category's requirements, with evidence" />
+      <div class="hl s8-row" id="s8-h1"></div><div class="hl s8-row" id="s8-h2"></div><div class="hl s8-row" id="s8-h3"></div>
+      <div class="hl green" id="s8-all"></div>
+    </div>
+  </div>
+</div>
+<script>
+  words("#s8-say", 0.3);
+  // "Anyone can audit the live log against the chain, through the Core Chain MCP server:"
+  inn("#s8-con", 0.5, { d: 0.45 });
+  inn("#s8-cmd", 0.9);
+  tl.fromTo("#s8-con .s8-r", { opacity: 0 }, { opacity: 1, duration: 0.15, stagger: 0.45 }, 2.2);
+  // "eight transactions out of eight agree,"
+  inn("#s8-sum", 6.6);
+  // "each post-quantum signature verified."
+  hlIn("#s8-pq", 8.6);
+  // "Scoped EVM windows, spending rules, authenticated messages:"
+  out("#s8-con", 10.3, 0.3);
+  camSet("#s8-cam", [140, 320, 1160, 520], VIEW);
+  inn("#s8-req", 10.5, { d: 0.4 });
+  hlIn("#s8-h1", 10.8); hlOut("#s8-h1", 12.0);
+  hlIn("#s8-h2", 12.1); hlOut("#s8-h2", 13.4);
+  hlIn("#s8-h3", 13.5); hlOut("#s8-h3", 15.2);
+  // "each requirement of the category, with its evidence."
+  hlIn("#s8-all", 15.3);
+  drift("#s8-cam", [160, 330, 1120, 500], VIEW, 15.3, 4.0);
+  endScene("#s8-stage");
+</script>

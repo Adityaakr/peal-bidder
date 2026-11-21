@@ -1,0 +1,33 @@
+<!-- {"id":"hook","start":0,"dur":13.63} -->
+<style>
+  #s1-b { opacity: 0; }
+  .s1-red { left: 588px; top: 404px; width: 104px; height: 48px; }
+</style>
+<div class="stage" id="s1-stage">
+  <div class="view full" id="s1-a">
+    <div class="cam" id="s1-cam-a" style="width:1440px">
+      <img src="assets/shots/problem.png" width="1440" height="724" alt="The landing page: an agent with a wallet is a key anyone can talk to" />
+      <div class="hl red s1-red" id="s1-h1"></div>
+    </div>
+  </div>
+  <div class="view full" id="s1-b">
+    <div class="cam" id="s1-cam-b" style="width:1440px">
+      <img src="assets/shots/hero.png" width="1440" height="900" alt="Peal Bidder's landing page: an AI agent that spends inside lines it cannot cross" />
+    </div>
+  </div>
+</div>
+<script>
+  // "Give an AI agent a wallet, and you have handed a key to anyone who can talk to it."
+  camSet("#s1-cam-a", [130, 100, 1180, 520], FULL);
+  drift("#s1-cam-a", [150, 110, 1140, 500], FULL, 0, 2.8);
+  camTo("#s1-cam-a", [140, 285, 580, 330], FULL, 2.9, 1.3);
+  hlIn("#s1-h1", 4.1);
+  // "Peal Bidder is an AI agent that bids in sealed auctions for its owner,"
+  out("#s1-a", 5.75, 0.3);
+  camSet("#s1-cam-b", [140, 160, 800, 170], FULL);
+  inn("#s1-b", 5.95, { d: 0.45 });
+  camTo("#s1-cam-b", [140, 120, 1160, 610], FULL, 7.6, 1.6);
+  // "inside lines it cannot cross."
+  camTo("#s1-cam-b", [140, 160, 1000, 170], FULL, 10.6, 1.8);
+  endScene("#s1-stage");
+</script>

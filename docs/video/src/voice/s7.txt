@@ -1,0 +1,1 @@
+Now try to break it. Fake a mandate in the owner's name: signature invalid. Send the same mandate twice: replayed. Feed the agent an injected plan, asking for the top price and the whole supply: the policy cuts it back to your mandate. Every refusal is a signed receipt too.

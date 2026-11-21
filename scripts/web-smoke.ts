@@ -115,7 +115,8 @@ try {
   const body = await expectHeadline(page, "Your mandate: accepted", 120_000);
   if (!/Bid: /.test(body)) throw new Error(`no bid after the mandate: ${body}`);
   ok(`mandate accepted and a bid planned: ${body.match(/Bid: .*? at tick \d+/)?.[0] ?? ""}`);
-  if (/Sealed to the auction's real/.test(body)) ok("the bid was sealed to the auction's real committee in the browser");
+  if (!/Sealed to the auction's real/.test(body)) throw new Error(`the bid was not sealed to the auction's committee: ${body}`);
+  ok("the bid was sealed to the auction's real committee in the browser");
   await shot(page, "try-accepted-1280");
 
   // 5. try to break it

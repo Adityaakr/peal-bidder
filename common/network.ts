@@ -39,5 +39,13 @@ export const PQC_KEY_STATUS = "0x0000000000000000000000000000000000000a02" as Ad
 
 /** The fest token fUSD (6 decimals): ERC-20 contract and its bank denomination. */
 export const FUSD = "0x97143B771D34ddb9130b807b135Ae675A5a963CA" as Address;
+
+/**
+ * Peal Sealed Auction's committee registry on the testnet
+ * (`0x95ea32ba3077070a562a9f7ad2e969f231689bae`, its deployments/qorechain-diana.json)
+ * went live just before block 10,183,212, where its committee set registered.
+ * Committee members' cards are read up from here.
+ */
+export const PEAL_REGISTRY_FROM_BLOCK = 10_183_000n;
 export const FUSD_DECIMALS = 6;
 export const FUSD_DENOM = "erc20:0x97143B771D34ddb9130b807b135Ae675A5a963CA";

@@ -28,7 +28,7 @@ import { createPublicClient, encodeFunctionData, erc20Abi, http, toFunctionSelec
 import { accountAddress, loadAccount, qoreSignKeys } from "../common/accounts.ts";
 import { main, out, parseFlags, str, units, int } from "../common/cli.ts";
 import { agentPaths, bidderHome, ownerPaths } from "../common/home.ts";
-import { FUSD, FUSD_DECIMALS, network } from "../common/network.ts";
+import { FUSD, FUSD_DECIMALS, PEAL_REGISTRY_FROM_BLOCK, network } from "../common/network.ts";
 import { BidderAgent, type BidDecision } from "../agent/agent.ts";
 import { ChainAuctionReader } from "../agent/chain-auction.ts";
 import { costCeil, priceAt } from "../agent/auction.ts";
@@ -221,7 +221,7 @@ async function run(): Promise<void> {
   const send: Broadcaster = sizedRelay(relayerFull);
   const nonceOf = async (account: string, pubkey: Uint8Array) => (await fetchAuthNonce({ rest: net.rest, address: account, pubkey })).nonce;
   const makeRelayer = (targets: string[]) => new Relayer({ relayer: relayerAcc.cosmos, account: owner.cosmos, targets, maxGas: 3_000_000n }, send, nonceOf);
-  const encoder = new SealedBidEncoder({ client, rest: net.rest, evmChainId: net.evmChainId, sealChainId: net.chainId, bidder: owner.evm as Address });
+  const encoder = new SealedBidEncoder({ client, rest: net.rest, evmChainId: net.evmChainId, sealChainId: net.chainId, bidder: owner.evm as Address, fromBlock: PEAL_REGISTRY_FROM_BLOCK });
   const executorWith = (targets: string[]) => {
     const relayer = makeRelayer(targets);
     return new SmartAccountExecutor({

@@ -1,0 +1,34 @@
+<!-- {"id":"how","start":33.6,"dur":22.3} -->
+<style>
+  .s3-step { top: 286px; width: 290px; height: 276px; }
+  #s3-h1 { left: 146px; } #s3-h2 { left: 432px; } #s3-h3 { left: 718px; } #s3-h4 { left: 1004px; }
+  #s3-rule { left: 640px; top: 1036px; width: 340px; height: 44px; }
+</style>
+<div class="stage" id="s3-stage">
+  <div class="say" id="s3-say" data-split>Four checks between the model and the money.</div>
+  <div class="view" id="s3-view">
+    <div class="cam" id="s3-cam" style="width:1440px">
+      <img src="assets/shots/how.png" width="1440" height="1350" alt="How it works: four steps and the message diagram" />
+      <div class="hl s3-step" id="s3-h1"></div><div class="hl s3-step" id="s3-h2"></div>
+      <div class="hl s3-step" id="s3-h3"></div><div class="hl s3-step" id="s3-h4"></div>
+      <div class="hl red" id="s3-rule"></div>
+    </div>
+  </div>
+</div>
+<script>
+  words("#s3-say", 0.3);
+  // "Each bid passes four checks."
+  camSet("#s3-cam", [140, 280, 1160, 290], VIEW);
+  inn("#s3-view", 0.3, { d: 0.5 });
+  drift("#s3-cam", [176, 288, 1088, 272], VIEW, 0.9, 16.1);
+  hlIn("#s3-h1", 1.2); hlOut("#s3-h1", 2.4);
+  // "The agent verifies the mandate against the owner's key on Core Chain."
+  hlIn("#s3-h2", 2.6); hlOut("#s3-h2", 6.6);
+  // "Claude Opus 5.5 proposes a price... A fixed policy clamps that proposal to the mandate."
+  hlIn("#s3-h3", 6.8); hlOut("#s3-h3", 15.9);
+  // "Then the chain enforces the limits again, through a spending rule only the owner can change."
+  hlIn("#s3-h4", 16.1); hlOut("#s3-h4", 17.2);
+  camTo("#s3-cam", [160, 900, 1120, 330], VIEW, 17.2, 1.4);
+  hlIn("#s3-rule", 18.9);
+  endScene("#s3-stage");
+</script>

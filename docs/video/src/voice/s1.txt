@@ -1,0 +1,1 @@
+Give an AI agent a wallet, and you have handed a key to anyone who can talk to it. Peal Bidder is an AI agent that bids in sealed auctions for its owner, inside lines it cannot cross.

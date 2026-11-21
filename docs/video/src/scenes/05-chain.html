@@ -1,0 +1,54 @@
+<!-- {"id":"chain","start":76.1,"dur":17.0} -->
+<style>
+  #s5-daily { left: 172px; top: 2335px; width: 1096px; height: 141px; }
+  .s5-card {
+    position: absolute; left: 380px; width: 1160px; padding: 34px 40px; opacity: 0;
+    background: var(--surface); border: 1px solid var(--rule-strong); border-radius: 12px;
+    box-shadow: 0 10px 30px rgba(11, 19, 32, 0.12);
+  }
+  #s5-tx { top: 380px; border-left: 6px solid var(--red); }
+  #s5-ledger { top: 330px; border-left: 6px solid var(--green); }
+  .s5-k { font-size: 28px; color: var(--muted); margin-bottom: 14px; }
+  .s5-q { font-family: "IBM Plex Mono", monospace; font-size: 30px; line-height: 1.45; color: var(--red); }
+  .s5-h { font-family: "IBM Plex Mono", monospace; font-size: 28px; color: var(--ink-2); margin-top: 18px; }
+  .s5-row { display: flex; align-items: baseline; gap: 26px; margin: 10px 0; font-family: "IBM Plex Mono", monospace; font-size: 30px; }
+  .s5-row b { font-family: "IBM Plex Sans", sans-serif; font-weight: 600; width: 150px; color: var(--ink); }
+  .s5-row .t { color: var(--ink-2); }
+  #s5-r2, #s5-won { opacity: 0; }
+  #s5-won { margin-top: 22px; font-family: "IBM Plex Sans Condensed", sans-serif; font-weight: 600; font-size: 46px; color: var(--green); }
+</style>
+<div class="stage" id="s5-stage">
+  <div class="say" id="s5-say" data-split>The chain held the <span class="lim">line</span> on its own.</div>
+  <div class="view" id="s5-view">
+    <div class="cam" id="s5-cam" style="width:1440px">
+      <img src="assets/shots/agent.png" width="1440" height="3307" alt="The live agent's second mandate: two bids refused by the chain" />
+      <div class="hl red" id="s5-daily"></div>
+    </div>
+  </div>
+  <div class="s5-card" id="s5-tx">
+    <div class="s5-k">Over the per-bid limit, with the agent's policy switched off. QoreChain answered:</div>
+    <div class="s5-q">per-tx limit 100000000erc20/0x9714…63CA exceeded (attempted 110000000): spending limit exceeded</div>
+    <div class="s5-h">4012FE2E86A57F0BBCC6493D0D6F4E584CB1826ACA8A078708F664EC22D3C3A9</div>
+  </div>
+  <div class="s5-card" id="s5-ledger">
+    <div class="s5-row" id="s5-r1"><b>Landed</b><span class="t">27CAB8D0…</span><span class="t">D6F66BD9…</span><span class="t">135C6D61…</span></div>
+    <div class="s5-row" id="s5-r2"><b>Claimed</b><span class="t">99000161…</span><span class="t">47FB6C58…</span><span class="t">93D74F33…</span></div>
+    <div id="s5-won">44.65 PEAL-T won</div>
+  </div>
+</div>
+<script>
+  words("#s5-say", 0.3);
+  camSet("#s5-cam", [160, 2030, 1120, 640], VIEW);
+  inn("#s5-view", 0.3, { d: 0.5 });
+  // "A bid after the day's limit was spent: refused by the spending rule."
+  drift("#s5-cam", [200, 2080, 1040, 590], VIEW, 0.8, 11.4);
+  hlIn("#s5-daily", 2.7);
+  // "A bid over the per-bid limit, with the agent's policy switched off: refused."
+  inn("#s5-tx", 7.0, { y: 16 });
+  out("#s5-tx", 12.0);
+  // "Three bids landed, and all three were claimed after the auction settled."
+  inn("#s5-ledger", 12.3, { y: 16 });
+  inn("#s5-r2", 14.4);
+  inn("#s5-won", 14.9);
+  endScene("#s5-stage");
+</script>
