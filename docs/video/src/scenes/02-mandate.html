@@ -1,0 +1,39 @@
+<!-- {"id":"mandate","start":13.63,"dur":19.97} -->
+<style>
+  #s2-legend { left: 703px; top: 484px; width: 272px; height: 49px; }
+  .s2-line { left: 658px; width: 635px; height: 28px; }
+  #s2-b1 { top: 263px; } #s2-b2 { top: 285px; } #s2-b3 { top: 307px; } #s2-b4 { top: 350px; }
+  #s2-all { left: 658px; top: 261px; width: 635px; height: 118px; }
+</style>
+<div class="stage" id="s2-stage">
+  <div class="say" id="s2-say" data-split>The mandate: the owner's <span class="lim">limits,</span> signed and sealed.</div>
+  <div class="view" id="s2-view">
+    <div class="cam" id="s2-cam" style="width:1440px">
+      <img src="assets/shots/mandate.png" width="1440" height="740" alt="The live agent's first mandate, field by field" />
+      <div class="hl" id="s2-legend"></div>
+      <div class="hl s2-line" id="s2-b1"></div><div class="hl s2-line" id="s2-b2"></div>
+      <div class="hl s2-line" id="s2-b3"></div><div class="hl s2-line" id="s2-b4"></div>
+      <div class="hl red" id="s2-all"></div>
+    </div>
+  </div>
+</div>
+<script>
+  words("#s2-say", 0.3);
+  // "It acts only on a mandate: a signed document, not a prompt."
+  camSet("#s2-cam", [140, 140, 470, 120], VIEW);
+  inn("#s2-view", 0.3, { d: 0.5 });
+  // "The owner signs it with a post-quantum ML-DSA-87 key, and seals it with ML-KEM-1024."
+  drift("#s2-cam", [160, 150, 430, 105], VIEW, 0.9, 3.2);
+  camTo("#s2-cam", [650, 112, 648, 516], VIEW, 4.2, 1.3);
+  drift("#s2-cam", [672, 135, 600, 478], VIEW, 5.6, 6.9);
+  hlIn("#s2-legend", 6.3);
+  hlOut("#s2-legend", 12.3);
+  // "Budget, most per bid, highest price, expiry"
+  hlIn("#s2-b1", 12.7); hlOut("#s2-b1", 13.9);
+  hlIn("#s2-b2", 14.0); hlOut("#s2-b2", 14.9);
+  hlIn("#s2-b3", 15.0); hlOut("#s2-b3", 16.3);
+  hlIn("#s2-b4", 16.4); hlOut("#s2-b4", 17.1);
+  // "every limit is written down."
+  hlIn("#s2-all", 17.2);
+  endScene("#s2-stage");
+</script>

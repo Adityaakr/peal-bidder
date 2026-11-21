@@ -1,0 +1,1 @@
+You can run the same agent yourself. Make a guest account in the browser, write a mandate, sign it, and watch each check light up. Your agent plans, clamps, and seals its bid to the auction's real two-of-three committee. Then it stops: the site sends nothing.

@@ -1,0 +1,13 @@
+{
+ "total": 164,
+ "clips": [
+  {
+   "id": "vo",
+   "src": "assets/voiceover.wav",
+   "start": 0,
+   "duration": 164,
+   "track-index": 3,
+   "volume": 1
+  }
+ ]
+}

@@ -271,3 +271,13 @@ From the approved design (decisions of 15 to 16 November 2026):
 - Third pull request: the owner's brake. `pnpm owner pause` and `resume` sign in to the running agent with Sign In With QoreChain. The agent issues a single-use nonce and checks the message against the owner's ML-DSA-87 key read from the chain, the same fail-closed key source it uses for mandates; a classical-only sign-in is refused. A paused agent places no bid until resumed. The worker considered porting the custody kit's verify-before-broadcast rule into the relayer, then left it out: the MCP audit already verifies every relayed transaction, so the port would add code with nothing to catch.
 - Fourth pull request: QoreScan inventories the cryptography the Bidder depends on (`pnpm cbom`: the testnet, the three accounts, the three endpoints' TLS), committed as a CycloneDX CBOM with a summary. The scan surfaced a point the threat model lacked: the endpoints use a hybrid ML-KEM key exchange but classical ECDSA certificates. The agent wrote down what an impersonated endpoint could and could not do, and a test keeps that section in line with the CBOM.
 - Fifth pull request: the owner can top up the fUSD budget from QOR on the chain's AMM (`pnpm owner topup`). The swap is priced by the chain's own quote with a minimum out, and converts that minimum to ERC-20 fUSD in the same transaction. The worker ran one 2 QOR top-up from the owner's existing funds; the swap paid exactly the quote.
+
+### 2026-11-21: the final check before the deadline
+
+**Human decision in this step**: the owner asked for a final pass on all three entries before 2 December: every step a judge would take must work, the README must say what is true now, and each entry needs its video.
+
+**What the worker agent did**
+
+- Walked the production build as a first-time visitor, served under `vercel.json`'s headers and rewrites, at desktop and phone width. Found that the playground could no longer seal a bid to the committee and took about two minutes to load, because the committee's events had aged past the log reader's block budget, and that 8 tests had failed since 18 November on a fixed clock. Fixed both (`docs/spikes.md`, 2026-11-21).
+- Rewrote the README's status from the published receipts and from on-chain lookups through the QoreChain MCP server (`pnpm agent audit --published`: 8 of 8), with the live run's full hashes, a five-minute path, the limits and the Vercel import steps.
+- Made the 2:44 video with HyperFrames (`docs/video`): real screens captured from the live site, narration by a local Kokoro voice, every figure from the receipts, the chain or the audit. Made the project page's cover from its last frame.
