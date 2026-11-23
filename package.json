@@ -18,6 +18,7 @@
     "relayer": "tsx relayer/server.ts",
     "dashboard": "tsx dashboard/server.ts",
     "demo:testnet": "tsx scripts/demo-testnet.ts",
+    "demo:window": "tsx scripts/demo-window.ts",
     "record:openrouter": "tsx scripts/record-openrouter.ts",
     "web": "vite --config apps/web/vite.config.ts",
     "web:build": "vite build --config apps/web/vite.config.ts",
