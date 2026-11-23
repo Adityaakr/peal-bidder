@@ -56,7 +56,7 @@ The addresses to list on the project page are the Bidder's three accounts (owner
 |---|---|---|---|
 | **Hybrid ML-DSA-87 transactions** | yes | every native transaction of the three accounts | verifies today |
 | **PQC key registration with proof of possession** | yes | the three `MsgRegisterPQCKeyV2` ([spikes.md](spikes.md)) | verifies today |
-| **EVM window (incl. scoped)** | yes | the owner's window scoped to fUSD for the approval | verifies today |
+| **EVM window (incl. scoped)** | yes | the agent account's own windows (`pnpm demo:window`, 24 November: one call landed, the chain refused calls off target, over the count, over the value and after expiry) and the owner's window scoped to fUSD for the approval | verifies today |
 | **QoreSeal and the encryption key registry** | yes | the agent account's `MsgRegisterKEMKey` | verifies today |
 | **Smart accounts and spending rules** | yes | the owner's spending rule and the agent's linked key; every bid is a `MsgExecuteEVM` under it | verifies today |
 | **Test tokens fUSD, fETH, fBTC** | yes | fUSD is the budget: `MsgConvertCoin`, `approve`, escrow, claims | verifies today |
@@ -78,7 +78,7 @@ The final list, after all five kits pull requests (#18 to #22) are merged. VERIF
 | Address | Role | What the chain shows for it |
 |---|---|---|
 | `qor14ndj6q3zp7hku9a4hkjnmhvsk3kegf46g002j5` | Owner | hybrid transactions; ML-DSA-87 key with proof of possession; a scoped EVM window (opened and closed for the fUSD approval); the spending rule and the agent's linked key; fUSD conversion and approval; the AMM top-up |
-| `qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur` | Agent account | ML-DSA-87 key; its ML-KEM-1024 key in the encryption key registry (`MsgRegisterKEMKey`) |
+| `qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur` | Agent account | ML-DSA-87 key; its ML-KEM-1024 key in the encryption key registry (`MsgRegisterKEMKey`); its own scoped EVM windows and one call inside them (`pnpm demo:window`) |
 | `qor16tsewlj6jpt4v2esmrhuk7z2xems6e09z5rpzc` | Relayer | ML-DSA-87 key; every bid and claim, as hybrid-signed `MsgExecuteEVM` under the owner's spending rule |
 
 **Kits to tick**
@@ -101,7 +101,7 @@ Leave unticked: create-qorechain-dapp, Wallet adapter, RDK, Asset Kit, Custody k
 |---|---|---|
 | Hybrid ML-DSA-87 transactions | VERIFIED | every transaction of the three accounts, e.g. the bid `27CAB8D0…ED61`; the audit verified the layer on all 8 relayed ones |
 | PQC key registration with proof of possession | VERIFIED | `41A99E6D…E5F8` (owner), `DC3E3F91…4DE5` (agent account), `1C13DC5B…79B8` (relayer) |
-| EVM window (incl. scoped) | VERIFIED | the owner's window scoped to fUSD, `F4AB3A44…4219`, closed by `2A42A368…B455` |
+| EVM window (incl. scoped) | VERIFIED | the agent account's window scoped to fUSD, `53530E8D…C043`, its call inside `02C0C8E2…AB5E`, closed by `702BC899…1502` (`pnpm demo:window`); the owner's window scoped to fUSD, `F4AB3A44…4219`, closed by `2A42A368…B455` |
 | QoreSeal and the encryption key registry | VERIFIED | the agent account's `MsgRegisterKEMKey`, `69839690…C325` |
 | Smart accounts and spending rules | VERIFIED | the link with the spending rule, `249EC850…F8D2`; the chain's refusals `4012FE2E…C3A9` (per-bid limit) and `B1E1DAD2…A13C` (daily limit) |
 | Test tokens fUSD, fETH, fBTC | VERIFIED | fUSD: conversion `3D32143F…8520`, approval, escrow and claims |

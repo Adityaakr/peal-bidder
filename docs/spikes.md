@@ -193,3 +193,20 @@ At block 10,479,847 (07:10 UTC) the committee set's `MemberJoined` events (block
 Fixed in `agent/logs.ts`: `scanForwards` reads up from the registry's deployment block (`PEAL_REGISTRY_FROM_BLOCK`, 10,183,000; the joins are in the first window), and `blockNear` estimates the block at the auction's `startTime` (two `getBlock` reads, then one correction: 2 s off for the demo auction), so the `AuctionCreated` lookup starts there instead of at the head. The web app reads the factory's auctions side by side. The playground now loads its auction in about 6 s with 78 RPC calls, names verified, and seals to the real 2-of-3 committee again; `pnpm web:smoke` now fails if it cannot.
 
 Two tests also started failing on 18 November: they signed mandates with the real clock against a fixed `NOW` of 18 November 08:53 UTC, so every mandate signed after that read as signed in the future (`agent.test.ts`, `e2e-local.test.ts`). They now sign at `NOW - 30 s`, like the others.
+
+### 2026-11-24 (UTC): the agent's own scoped window
+
+The category asks for the agent's own scoped EVM window with transaction, value, duration and target limits. The live run of 16 November bid through the owner's spending rule, so the agent account had never opened one. `pnpm demo:window` (`scripts/demo-window.ts`) runs it on the agent account `qor1k7at…lur`. The owner opens each window with the agent account's ML-DSA-87 key. The agent sends with its classical key only, as a thief of that key would. Every call is harmless: `approve(factory, 0)` on fUSD from an account that holds no fUSD.
+
+| Step | Chain's answer | Hash |
+|---|---|---|
+| Window A opened: fUSD only, 1 transaction, 300 blocks, 25,000 uqor (hybrid ML-DSA-87, verified through the MCP server) | landed, height 10,630,974 | `53530E8DD266A9C34F61D922D2D028C9F2536F9C30EEEF5F56508FD6C94BC043` |
+| The agent's call to fUSD inside it (classical EVM lane, 20,000 uqor of the window's value) | landed, height 10,630,977 | `02C0C8E2A7F1043C1C45CA9EC49D1A0FE99F757D8E90F485551E794F755DAB5E` (EVM `0xc4de6682f7b565dd392334bbd9dab42bdb4e6a6ed0dadefd951d5c36078c6977`) |
+| A call to the auction factory | refused at broadcast: "the window does not list 0x1160…6562 as an allowed recipient" | none |
+| A second call to fUSD | refused at broadcast: "remaining: 296 blocks, 0 transactions, 5000 uqor; this transaction needs 20000 uqor" | none |
+| Window A closed | landed | `702BC899F14997AD18D6B632E2B7C6D2F753C9BB2AA57F7C2390345EADED1502` |
+| Window B opened: fUSD only, 2 transactions, 40 blocks, 50,000 uqor | landed, heights 10,630,981 to 10,631,021 | `6511530740B4F630A1892111AD5C340A6679813D276EBD61F8D3D7155731C47F` |
+| A call carrying 1 QOR | refused at broadcast: "remaining: 39 blocks, 2 transactions, 50000 uqor; this transaction needs 1020000 uqor" | none |
+| A call to fUSD after block 10,631,021 | refused at broadcast: "remaining: 0 blocks, 2 transactions, 50000 uqor" | none |
+
+A refused EVM call never enters a block, so it has no hash. The answers above are the node's, quoted from the script's output. The window counts fees against its value limit, so a transaction count needs value for its fees too: `windowMaxValue` sizes it that way.
