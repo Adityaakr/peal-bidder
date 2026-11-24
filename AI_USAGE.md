@@ -291,3 +291,15 @@ From the approved design (decisions of 15 to 16 November 2026):
 - Created two fUSD auctions with Peal Sealed Auction's own testnet scripts (one for the run, one left open for judges until 17 December), linked the agent's key again for two hours, signed the mandates and ran the Bidder's own commands against them. Claude Opus 5.5 planned four bids through OpenRouter (7,498 tokens in, 650 out).
 - Showed one refusal for each limit, recorded the hashes in `docs/spikes.md`, published the receipts and updated the site, the README and the threat model from them.
 - Found and fixed two errors on the way: scene 3b of the testnet demo sent a call the rule allows, and `pnpm owner` in the docs ran npm's own command. The settle script was stopped by the public RPC's rate limit before its last step; the worker sent that step on its own and said so.
+
+### 2026-11-24 and 25: the vault
+
+**Human decision in this step**: after comparing the entry with its rivals, the owner approved building a vault contract that holds the budget ("do it build the vault"), with checkpoints and a fallback, on the testnet with throwaway accounts only.
+
+**What the worker agent did**
+
+- A design spike (a separate agent) had shown locally that a contract can be the bidder, found that the committee's reader would miss its envelopes, and left three surviving mutants. The worker built the contract from that design: a config hash the owner signs, one-hour signatures, a separate `revoke`, an exit that also works before a first policy, bounded and sanity-checked policies.
+- Wrote 54 Foundry tests and 4 invariants against a pinned copy of the auction's contracts, then 50 hand-made mutants. The first run left two alive (the counters a new policy resets); a test was added and both died. One test written for a spike mutant (the allowance reset) would not have killed it, because an ordinary token uses the allowance up anyway; it was rewritten with a token that does not.
+- Adding that test made the compiler fail ("Tag too large for reserved space"); the suite was split in three.
+- Wrote the agent's side, the owner's commands, the rule that lists no held token, and the site's reading of it, and corrected the threat model's sentence that said the transfer finding could not be tightened.
+- Not audited. At the time of this entry nothing had been sent to the testnet.

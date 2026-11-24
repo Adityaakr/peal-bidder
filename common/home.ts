@@ -29,6 +29,10 @@ export function ownerPaths(home = bidderHome()) {
     agentAccount: join(dir, "agent-account.env"),
     /** The relayer's account mnemonic (it only holds gas). */
     relayer: join(dir, "relayer.env"),
+    /** The vault's gas account: deploys the vault and carries the owner's signed actions. Gas only. */
+    vaultGas: join(dir, "vault-gas.env"),
+    /** The deployed vault's address (not secret). */
+    vault: join(dir, "vault.json"),
     /** Sealed mandates the owner has written, by nonce. */
     outbox: join(dir, "outbox"),
   };

@@ -244,6 +244,7 @@ contract BidderVaultOwnerTest is VaultBase {
 
     /// The committee's reader decodes this selector from MsgExecuteEVM calldata: it must not change.
     function test_bidSelectorIsPinned() public pure {
+        assertEq(BidderVault.bid.selector, bytes4(0xfc4c422a));
         assertEq(
             BidderVault.bid.selector, bytes4(keccak256("bid(address,uint32,bytes32,bytes32,bytes32[],bytes[],uint256)"))
         );

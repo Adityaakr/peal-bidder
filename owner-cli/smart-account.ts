@@ -13,7 +13,7 @@
  * `denomLimits` below (per execution and per day) and the linked key's expiry
  * were each refused on chain (docs/spikes.md).
  */
-import { checkValuePermissionRules, msg, qorechainTypes, validateSpendingRules, type EncodeObject } from "@qorechain/sdk";
+import { checkValuePermissionRules, msg, qorechainTypes, ruleBoundsEveryDenom, validateSpendingRules, type EncodeObject } from "@qorechain/sdk";
 import {
   agentLinkProof,
   evmCallEntry,
@@ -24,6 +24,7 @@ import {
 import { toFunctionSelector, type Address, type Hex } from "viem";
 import type { PealMandateV1 } from "../common/mandate.ts";
 import { CLAIM_SIGNATURE, COMMIT_BID_SIGNATURE } from "../agent/auction-abi.ts";
+import { VAULT_BID_SELECTOR } from "../agent/vault.ts";
 
 export type SpendingRule = ReturnType<typeof qorechainTypes.abstractaccount.SpendingRule.fromPartial>;
 export type { AgentRule };
@@ -85,6 +86,45 @@ export function spendingRuleFor(mandate: PealMandateV1, commitBidSelector: Hex, 
   const chainForm = toChainRule(rule);
   validateSpendingRules([chainForm]);
   checkValuePermissionRules([...AGENT_PERMISSIONS], [chainForm]);
+  return rule;
+}
+
+/** The rule id when bids go through the vault. */
+export const VAULT_RULE_ID = "peal-bidder-vault";
+
+/**
+ * The spending rule when the budget sits in the owner's vault:
+ * - with call data, only `vault.bid` and, on the mandate's auctions, `claim`;
+ * - one listed token, `unheldToken`, which the account does not hold, with a
+ *   limit of one base unit. It is there because an EMPTY `allowedDenoms` means
+ *   ANY denom on this chain (`ruleBoundsEveryDenom` is false for it), so the
+ *   list must never be empty. The caller checks the account's balance of it.
+ *
+ * fUSD is not listed, so the linked key can neither transfer nor approve it.
+ * The chain therefore no longer measures fUSD: the vault's own limits do.
+ */
+export function vaultRuleFor(args: { vault: Address; auctions: string[]; unheldToken: Address; quoteToken: string }): AgentRule {
+  const token = args.unheldToken.toLowerCase();
+  if (token === args.quoteToken.toLowerCase()) throw new Error("the rule must not list the budget token");
+  if (token === args.vault.toLowerCase()) throw new Error("the rule must not list the vault as a token");
+  if (args.auctions.length === 0) throw new Error("name the auctions");
+  const denom = `erc20/${token}`;
+  const claim = toFunctionSelector(CLAIM_SIGNATURE);
+  const rule: AgentRule = {
+    id: VAULT_RULE_ID,
+    perTxLimit: 0n,
+    dailyLimit: 0n,
+    allowedDenoms: [denom],
+    denomLimits: [{ denom, perTxLimit: 1n, dailyLimit: 1n }],
+    allowedEvmCalls: [
+      { target: args.vault.toLowerCase() as Address, selector: VAULT_BID_SELECTOR },
+      ...args.auctions.map((a) => ({ target: a.toLowerCase() as Address, selector: claim })),
+    ],
+  };
+  const chainForm = toChainRule(rule);
+  validateSpendingRules([chainForm]);
+  checkValuePermissionRules([...AGENT_PERMISSIONS], [chainForm]);
+  if (!ruleBoundsEveryDenom(chainForm)) throw new Error("the rule does not bound every denom");
   return rule;
 }
 

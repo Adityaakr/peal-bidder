@@ -2,8 +2,8 @@
  * After the auction: find the agent's bids and claim them.
  *
  * The chain is the record: the agent's bids are the auction's stored bids for
- * its bidder address (the owner's account on the smart-account path, the
- * agent's own on the fallback path). `claim(bidId)` is
+ * its bidder address (the vault when bids go through one, else the owner's
+ * account on the smart-account path, the agent's own on the fallback path). `claim(bidId)` is
  * permissionless and always pays the bidder, so claiming moves nothing out of
  * the owner's account; it is sent through the same executor as the bids.
  */
@@ -88,6 +88,8 @@ export async function claimAll(args: {
   sender: CallSender;
   receipts: ReceiptLog;
   mandateHash: string | null;
+  /** The vault that is the bidder, recorded in the receipt. */
+  vault?: string;
 }): Promise<{ bidId: bigint; result: SubmitResult }[]> {
   const { outcome } = args;
   if (!outcome.claimable) return [];
@@ -104,6 +106,7 @@ export async function claimAll(args: {
       status: result.status,
       txHash: result.txHash ?? null,
       reason: result.reason ?? null,
+      ...(args.vault ? { vault: args.vault.toLowerCase() } : {}),
     });
     out.push({ bidId: b.bidId, result });
   }

@@ -2,8 +2,10 @@
  * Submitting a bid through the owner's smart account: the agent signs a
  * `MsgExecuteEVM` with its linked key, and the relayer broadcasts it. The
  * chain runs the call from the OWNER's account, after checking the agent's
- * signature, the key's expiry and the owner's spending rule (fUSD only, per-bid
- * and daily limits, only `commitBid` on the mandate's auctions).
+ * signature, the key's expiry and the owner's spending rule. Without a vault the
+ * rule is fUSD only, per-bid and daily limits, only `commitBid` and `claim` on the
+ * mandate's auctions; with one (`vault.ts`) it lists no token the account holds
+ * and only `vault.bid` and `claim`.
  *
  * Proven by spike S2 (qore-pq-kit docs/spikes.md); signing comes from the
  * kit's `smart-account` module. The bid's calldata comes from a `BidEncoder`
@@ -11,10 +13,11 @@
  */
 import type { EncodeObject, EvmAuthDigestVersion } from "@qorechain/sdk";
 import { buildAgentCall } from "qore-pq-kit/smart-account";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 import type { PealMandateV1 } from "../common/mandate.ts";
 import { encodeExecuteEvmWire, type RelayOutcome } from "../relayer/relayer.ts";
 import type { BidDecision, BidExecutor, SubmitResult } from "./agent.ts";
+import { assertBidTarget } from "./vault.ts";
 
 export interface EncodedBid {
   to: Hex;
@@ -59,6 +62,8 @@ export interface SmartAccountExecutorDeps {
   /** The relayer's `qor1` address (named inside the signed message). */
   relayer: string;
   encoder: BidEncoder;
+  /** When bids go through the owner's vault: the only contract a bid may target. */
+  vault?: Address;
   relay: RelayClient;
   /** The linked key's own sequence (SDK `fetchAuthNonce`), not the account's EVM nonce. */
   authNonce: () => Promise<bigint>;
@@ -73,7 +78,7 @@ export class SmartAccountExecutor implements BidExecutor, CallSender {
   /** Build and sign the message; exposed for tests and for inspection before sending. */
   async build(decision: BidDecision, mandate: PealMandateV1): Promise<EncodeObject> {
     const bid = await this.deps.encoder.encode(decision, mandate);
-    if (bid.to.toLowerCase() !== decision.auction) throw new Error("the encoder targets another contract than the decision");
+    assertBidTarget(bid, decision, this.deps.vault);
     return this.sign(bid);
   }
 

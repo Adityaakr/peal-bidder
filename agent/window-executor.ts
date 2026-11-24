@@ -11,10 +11,11 @@
  * the owner holds.
  */
 import { fetchEvmWindow } from "@qorechain/sdk";
-import type { Hex } from "viem";
+import type { Address, Hex } from "viem";
 import type { PealMandateV1 } from "../common/mandate.ts";
 import type { BidDecision, BidExecutor, SubmitResult } from "./agent.ts";
 import type { BidEncoder, CallSender, EncodedBid } from "./smart-account-executor.ts";
+import { assertBidTarget } from "./vault.ts";
 
 export interface WindowView {
   live: boolean;
@@ -24,6 +25,8 @@ export interface WindowView {
 
 export interface WindowExecutorDeps {
   encoder: BidEncoder;
+  /** When bids go through the owner's vault: the window must admit it, and a bid may target nothing else. */
+  vault?: Address;
   /** The agent account's window, as the chain reports it. */
   window: () => Promise<WindowView>;
   /** Sign and send one EVM transaction from the agent's account; returns its hash. */
@@ -53,11 +56,12 @@ export class WindowExecutor implements BidExecutor, CallSender {
   }
 
   async submit(decision: BidDecision, mandate: PealMandateV1): Promise<SubmitResult> {
-    const refused = await this.windowRefusal(decision.auction);
+    const refused = await this.windowRefusal(this.deps.vault ?? decision.auction);
     if (refused) return refused;
     let tx: EncodedBid;
     try {
       tx = await this.deps.encoder.encode(decision, mandate);
+      assertBidTarget(tx, decision, this.deps.vault);
     } catch (err) {
       return { status: "refused", reason: `not sent: ${(err as Error).message}` };
     }

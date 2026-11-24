@@ -30,7 +30,7 @@ pnpm web                      # http://localhost:5173
 1. **The live agent** (`#/agent`): its 42 receipts verify in your browser (hash chain and ML-DSA-87 signatures), every transaction hash is looked up on the testnet, and the owner's key, spending rule and auctions are read live.
 2. **Your agent** (`#/try`): "Create a guest account" (keys made in the browser, no funds), then "Sign and send to my agent". Your agent opens the sealed mandate, checks your ML-DSA-87 signature, plans, clamps and seals a bid to the real 2-of-3 committee of an open fUSD auction (`0xe0462A491b23CAb0efDEf92c0B0878d22B871EC1`, open until 17 December 2026, 00:00 UTC), and stops before sending.
 3. **Try to break it**: forge, tamper with, replay, expire or misdirect a mandate, or feed the agent an injected plan. Each is refused with its code, or clamped, with a signed receipt.
-4. In a terminal: `pnpm test` (268 offline tests), `pnpm demo:offline` (the whole mandate flow with throwaway keys), and `pnpm agent audit --published` (the live log checked against the chain through the QoreChain MCP server; no key needed).
+4. In a terminal: `pnpm test` (290 offline tests), `pnpm demo:offline` (the whole mandate flow with throwaway keys), and `pnpm agent audit --published` (the live log checked against the chain through the QoreChain MCP server; no key needed).
 
 **Re-checked 24 November 2026:** `pnpm test` 268 passed (3 live checks skipped), `pnpm typecheck` clean, `pnpm web:smoke` passed its 14 checks against the live testnet, and `pnpm agent audit --published` found 14 of 14 transactions as recorded, each hybrid-verified. `pnpm demo:offline` ran from a fresh clone the same day.
 
@@ -121,7 +121,9 @@ Layers, from the outside in:
 | `scripts/publish-receipts.ts` | `pnpm web:receipts`: checks the live agent's receipts log and copies it, with the receipt key's public half, into `apps/web/public/live/` |
 | `scripts/web-smoke.ts` | `pnpm web:smoke`: the landing page and the guest-agent flow in headless Chromium |
 | `vercel.json` | Vercel build, the REST and RPC rewrites, and the security headers |
-| `test/` | 268 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
+| `contracts/` | `BidderVault.sol`, the contract that can hold the budget (**not audited, not yet used on the testnet**; [docs/vault.md](docs/vault.md)), and its Foundry tests against a pinned, unmodified copy of Peal Sealed Auction's contracts |
+| `agent/vault.ts`, `owner-cli/vault.ts`, `scripts/demo-vault.ts` | Bidding through the vault (`--vault 0x…`), the owner's `vault` commands and their ML-DSA-87 signatures, and the vault's testnet scenes |
+| `test/` | 290 offline tests, and 3 live planner checks that run only with `PEAL_BIDDER_LIVE=1` (Vitest and fast-check); see below |
 
 ## Running it
 
@@ -215,6 +217,7 @@ The production build was checked on 21 November from a clean clone with an empty
 - **Claims** (`test/claims.test.ts`): only the bidder's own bids (a node returning someone else's is caught by `getBid`), each unclaimed bid claimed once with a receipt, nothing claimed before the auction is settled, failed or cancelled.
 - **CLI and dashboard** (`test/cli.test.ts`, `test/dashboard.test.ts`): the owner-to-agent flow through the files, restart and replay; fUSD amounts parsed exactly; untrusted strings escaped on the page.
 - **The published receipts** (`test/web-live.test.ts`): only public material is published, the log verifies, one edited line breaks it, and the figures the landing page shows.
+- **The vault** (`contracts/test`, CI job `contracts`; `test/vault.test.ts`): 54 Foundry tests and 4 invariants against the real auction contracts (settled, refunded, every limit at its exact boundary, hostile auctions and tokens, owner control by ML-DSA-87 signature only, the exit without precompiles); the agent's side (the seal bound to the vault, what it refuses to send, the rule that lists no held token, signatures and hashes fixed on both sides). Two tests hold what the vault does *not* stop: `test_RESIDUAL_overpay` and `test_junkBid_costsAtMostTheBond`.
 - **Web smoke** (`pnpm web:smoke`, CI job `web`): in headless Chromium, the landing page renders with no sideways scroll at 1280, 768 and 390 px and the live receipts verify in the page; a guest account is created; its agent accepts a mandate, plans, clamps and seals a bid to the real committee; a forged, a tampered, a replayed, an expired and a misdirected mandate are refused with their codes; an injected plan is clamped. It reads the public testnet and sends nothing.
 
 The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of API responses (each says so in its `provenance` field). An answer recorded from the real model through OpenRouter is in `test/fixtures/openrouter-recorded/`, and the nine live planning rounds are in the published receipts.
@@ -223,7 +226,7 @@ The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of
 
 QoreChain testnet `qorechain-diana`, EVM chain id 9800. Quote and budget token: the fest's fUSD (`0x97143B771D34ddb9130b807b135Ae675A5a963CA`, 6 decimals).
 
-The Bidder deploys no contract of its own: it bids in [Peal Sealed Auction](https://github.com/Adityaakr/peal-sealed-auction)'s, through the owner's smart account. Their addresses: factory `0x1160ab95b570a65bbadb488c76e2f8515f3d6562`, committee registry `0x95ea32ba3077070a562a9f7ad2e969f231689bae` (committee set `0xd6da2884…0fe5`, 2-of-3), PEAL-T `0x7edc65adc95de061887ecd6fc8629f2a99fffe9e`.
+The Bidder has deployed no contract of its own yet (the vault is built, not deployed): it bids in [Peal Sealed Auction](https://github.com/Adityaakr/peal-sealed-auction)'s, through the owner's smart account. Their addresses: factory `0x1160ab95b570a65bbadb488c76e2f8515f3d6562`, committee registry `0x95ea32ba3077070a562a9f7ad2e969f231689bae` (committee set `0xd6da2884…0fe5`, 2-of-3), PEAL-T `0x7edc65adc95de061887ecd6fc8629f2a99fffe9e`.
 
 **Testnet accounts** (throwaway, created and funded 16 November 2026; keys outside the repository; none is a drill account):
 
@@ -273,7 +276,7 @@ So both fUSD limits of the spending rule, per bid and per day, were exercised on
 - **The guest agent on the site does not send.** It signs, seals and encodes a real bid to the auction's real committee, then stops. Bidding on chain from the browser is roadmap item 8.
 - **The agent is not bidding around the clock.** It ran on 16 and 24 November; its linked key expired on 24 November at 20:46 UTC, so it can do nothing until the owner links it again. It placed no bid in the judges' auction (`0xe0462A491b23CAb0efDEf92c0B0878d22B871EC1`), which stays open until 17 December 2026 and is settled after that by the Sealed Auction committee.
 - **The public planner is the rule-based one.** Claude Opus 5.5 plans only on the owner's machine, with the owner's key; the site never sees it.
-- **A stolen agent key can move fUSD within the limits** to an address of its choosing (at most the per-bid limit per call and the daily limit per day), because the chain lets a linked key transfer any token its rule lists. The threat model gives the bound and the mitigations.
+- **A stolen agent key can move fUSD within the limits** to an address of its choosing (at most the per-bid limit per call and the daily limit per day), because the chain lets a linked key transfer any token its rule lists, and the live runs kept the budget on the owner's account, so the rule listed it. The threat model gives the bound and the mitigations. A vault contract that removes this is built and tested locally ([docs/vault.md](docs/vault.md)); it is **not audited and not yet used on the testnet**.
 - QoreSeal is a 0.1.0 draft pending external review, and the endpoints' TLS certificates are ECDSA ([docs/cbom](docs/cbom/README.md)).
 
 ## QoreChain kits and network features
