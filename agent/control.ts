@@ -2,7 +2,7 @@
  * The owner's brake: pause and resume a running agent with Sign In With
  * QoreChain (SIWQ, QoreSign's `createSiwqMessage` / `signSiwq` / `verifySiwq`).
  *
- * Why: revoking the agent's linked key (`pnpm owner revoke`) is final, costs a
+ * Why: revoking the agent's linked key (`pnpm run owner revoke`) is final, costs a
  * hybrid transaction and needs a new link afterwards. An owner who only wants
  * the agent to hold off (the auction looks wrong, the mandate needs a second
  * thought) needs something instant, free and reversible, and no weaker than

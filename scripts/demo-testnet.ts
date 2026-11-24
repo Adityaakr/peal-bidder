@@ -17,14 +17,14 @@
  *   2. The planner proposes, the policy clamps, the bid is sealed to the committee, MsgExecuteEVM lands.
  *   3. Refusals:
  *      a. over the per-transaction limit, policy bypassed: the chain answers success=false;
- *      b. a call to another contract (an fUSD transfer), policy bypassed: the chain refuses;
+ *      b. a call to a contract off the allowlist (the auction factory), policy bypassed: the chain refuses;
  *      c. a forged mandate: the agent refuses;
  *      d. an injected instruction in the auction text: the policy clamps it.
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fetchAuthenticators, fetchKemKey, fetchPqcStatus, fetchSpendingRules } from "@qorechain/sdk";
-import { createPublicClient, encodeFunctionData, erc20Abi, http, toFunctionSelector, type Address, type Hex } from "viem";
+import { createPublicClient, http, toFunctionSelector, type Address, type Hex } from "viem";
 import { accountAddress, loadAccount, qoreSignKeys } from "../common/accounts.ts";
 import { main, out, parseFlags, str, units, int } from "../common/cli.ts";
 import { agentPaths, bidderHome, ownerPaths } from "../common/home.ts";
@@ -49,6 +49,9 @@ import { auctionOutcome, claimAll } from "../agent/claims.ts";
 import { Relayer, sizedRelay, type Broadcaster } from "../relayer/relayer.ts";
 import { envelopeToText } from "@qorechain/qoreseal";
 import { sealInstruction, signInstruction } from "qore-pq-kit/messaging";
+
+/** Peal Sealed Auction's factory: a contract the agent's rule does not list. */
+const FACTORY: Hex = "0x1160ab95b570a65bbadb488c76e2f8515f3d6562";
 
 interface Check {
   item: string;
@@ -286,16 +289,13 @@ async function run(): Promise<void> {
   };
   results.scene3a = { outflow: over.outflow, limit: maxPerBid, submit: await executor.submit(over, mandate) };
 
-  // Scene 3b: a call to another contract (an fUSD transfer to the relayer), policy bypassed. The demo
-  // relayer is told to allow fUSD as a target so the chain, not the relayer, is what refuses.
-  const offTarget = executorWith([auction, FUSD.toLowerCase()]);
+  // Scene 3b: a call to a contract off the allowlist (a read-only function of the auction factory), policy
+  // bypassed. The demo relayer is told to allow it so the chain, not the relayer, is what refuses. (Not an
+  // fUSD transfer: a rule that lists fUSD admits those within its limits; see docs/spikes.md.)
+  const offTarget = executorWith([auction, FACTORY]);
   results.scene3b = {
-    call: "fUSD.transfer(relayer, 1 fUSD) from the owner's account",
-    submit: await offTarget.sendCall({
-      to: FUSD,
-      data: encodeFunctionData({ abi: erc20Abi, functionName: "transfer", args: [relayerAcc.evm as Hex, 1_000_000n] }),
-      gasLimit: 120_000n,
-    }),
+    call: "factory.auctionCount() from the owner's account",
+    submit: await offTarget.sendCall({ to: FACTORY, data: toFunctionSelector("auctionCount()"), gasLimit: 200_000n }),
   };
 
   // Scene 3c: a forged mandate: the relayer's account signs a looser mandate as itself, then names the

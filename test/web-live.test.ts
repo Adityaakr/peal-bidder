@@ -37,7 +37,7 @@ describe("published receipts", () => {
     const c = verifyReceipts(lines, hexToBytes(info.receiptPublicKey));
     if (!c.ok) throw new Error("log broken");
     const events = toEvents(c.receipts, info.receiptKeyHash);
-    expect(statsOf(events)).toMatchObject({ mandates: 2, refusedByAgent: 1, landed: 3, refusedByChain: 2, claims: 3 });
+    expect(statsOf(events)).toMatchObject({ mandates: 4, refusedByAgent: 4, landed: 5, refusedByChain: 4, claims: 5 });
     const refused = events.find((e) => e.kind === "mandate-refused");
     expect(refused).toMatchObject({ code: "SIGNATURE_INVALID" });
     for (const e of events) if (e.kind === "mandate-accepted") expect(e.pinsKey).toBe(true);

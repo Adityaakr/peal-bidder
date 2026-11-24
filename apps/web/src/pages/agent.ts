@@ -77,7 +77,7 @@ function eventItem(e: LiveEvent): HTMLElement | null {
     case "result":
       if (e.status === "landed") return item("ok", "check", e.at, h("span", `Bid landed: ${fusd(e.outflow)} at tick ${e.tick}`), e.txHash ? txLink(e.txHash) : null);
       if (e.status === "refused")
-        return item("bad", "shield", e.at, h("span", "Refused by the chain ", chip("spending rule", "bad")), h("p.tl-text", (e.reason ?? "").split(":")[0] ?? ""), e.txHash ? txLink(e.txHash) : null, h("p.tl-note", "The transaction was included, its call was refused, and nothing moved. The agent counts it and moves on."));
+        return item("bad", "shield", e.at, h("span", "Refused by the chain ", chip(/^execution reverted/.test(e.reason ?? "") ? "call reverted" : "spending rule", "bad")), h("p.tl-text", (e.reason ?? "").split(":")[0] ?? ""), e.txHash ? txLink(e.txHash) : null, h("p.tl-note", "The transaction was included, its call was refused, and nothing moved. The agent counts it and moves on."));
       return item("plain", "clock", e.at, h("span", `Bid ${e.status}`), e.reason ? h("p.tl-text", e.reason) : null);
     case "claim":
       return item("ok", "check", e.at, h("span", `Claimed bid ${e.bidId}: ${pealt(e.allocation)} won`), e.txHash ? txLink(e.txHash) : null);

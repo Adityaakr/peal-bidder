@@ -281,3 +281,13 @@ From the approved design (decisions of 15 to 16 November 2026):
 - Walked the production build as a first-time visitor, served under `vercel.json`'s headers and rewrites, at desktop and phone width. Found that the playground could no longer seal a bid to the committee and took about two minutes to load, because the committee's events had aged past the log reader's block budget, and that 8 tests had failed since 18 November on a fixed clock. Fixed both (`docs/spikes.md`, 2026-11-21).
 - Rewrote the README's status from the published receipts and from on-chain lookups through the QoreChain MCP server (`pnpm agent audit --published`: 8 of 8), with the live run's full hashes, a five-minute path, the limits and the Vercel import steps.
 - Made the 2:44 video with HyperFrames (`docs/video`): real screens captured from the live site, narration by a local Kokoro voice, every figure from the receipts, the chain or the audit. Made the project page's cover from its last frame.
+
+### 2026-11-24: the second live run
+
+**Human decision in this step**: the owner asked for a new fUSD auction on the existing factory and a live run in it, with at least two bids inside the mandate, one refusal for each enforced limit, settlement and claims, and only true statements published.
+
+**What the worker agent did**
+
+- Created two fUSD auctions with Peal Sealed Auction's own testnet scripts (one for the run, one left open for judges until 17 December), linked the agent's key again for two hours, signed the mandates and ran the Bidder's own commands against them. Claude Opus 5.5 planned four bids through OpenRouter (7,498 tokens in, 650 out).
+- Showed one refusal for each limit, recorded the hashes in `docs/spikes.md`, published the receipts and updated the site, the README and the threat model from them.
+- Found and fixed two errors on the way: scene 3b of the testnet demo sent a call the rule allows, and `pnpm owner` in the docs ran npm's own command. The settle script was stopped by the public RPC's rate limit before its last step; the worker sent that step on its own and said so.
