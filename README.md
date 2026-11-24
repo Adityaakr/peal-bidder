@@ -2,6 +2,8 @@
 
 **An AI agent that spends inside lines it cannot cross.** Peal Bidder bids in Peal sealed auctions for its owner. Claude Opus 5.5 plans each bid, but the agent acts only on a mandate its owner signed with a post-quantum key (ML-DSA-87) and sealed to it (ML-KEM-1024), and QoreChain itself refuses any bid outside the owner's spending rule.
 
+**Try it live: [peal-bidder.vercel.app/#/try](https://peal-bidder.vercel.app/#/try)** (make a guest account in the browser; no install, no wallet, no funds). The site: [peal-bidder.vercel.app](https://peal-bidder.vercel.app).
+
 Entry in the **Post-Quantum AI Agents** category of QoreChain's *Build Before Q-Day* developer fest, on the `qorechain-diana` testnet. One of three linked entries: [Peal Sealed Auction](https://github.com/Adityaakr/peal-sealed-auction) is the venue, [Peal Tender](https://github.com/Adityaakr/peal-tender) the treasury that runs buybacks through it, and this repository the participant. Licence Apache-2.0.
 
 ## Why post-quantum matters for an agent
@@ -17,7 +19,7 @@ So a thief with the agent's key, or a quantum attacker with any of the classical
 
 ## Try it
 
-Needs Node 22 and pnpm 10; no key, no funds, no account.
+On the hosted site: [peal-bidder.vercel.app](https://peal-bidder.vercel.app). To run it yourself you need Node 22 and pnpm 10; no key, no funds, no account.
 
 ```sh
 git clone https://github.com/Adityaakr/peal-bidder && cd peal-bidder
@@ -185,7 +187,7 @@ Three pages:
 
 The owner's OpenRouter key never reaches the site: the public planner is the rule-based one, and there is no server-side planner endpoint. When no Peal auction is taking bids, the playground rehearses on the last demo auction (read from the chain, treated as open). Visitors fund their guest account themselves, from the QoreChain faucet or QoreX.
 
-**Hosting on Vercel.** `vercel.json` sets everything: `pnpm install --frozen-lockfile`, `pnpm web:build`, output `apps/web/dist`, the rewrites of `/api/qore/rest` and `/api/qore/rpc` to the public testnet endpoints (which send no CORS headers), and the security headers, including a Content-Security-Policy. No environment variable is needed, and none should be added: the site holds no key. To host it:
+**Hosting on Vercel.** The site is hosted at [peal-bidder.vercel.app](https://peal-bidder.vercel.app). `vercel.json` sets everything: `pnpm install --frozen-lockfile`, `pnpm web:build`, output `apps/web/dist`, the rewrites of `/api/qore/rest` and `/api/qore/rpc` to the public testnet endpoints (which send no CORS headers), and the security headers, including a Content-Security-Policy. No environment variable is needed, and none should be added: the site holds no key. To host your own copy:
 
 1. On vercel.com: **Add New → Project → Import Git Repository**, and pick `Adityaakr/peal-bidder` (if it is not listed, give Vercel's GitHub app access to the repository).
 2. Project name `peal-bidder`; Framework Preset **Other**; Root Directory `./`. Leave the build, output and install overrides off, so `vercel.json` applies.
