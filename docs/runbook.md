@@ -2,21 +2,21 @@
 
 Every step, in order, with what it costs and who runs it. Commands print addresses and hashes only, never a key.
 
-**Status (21 November 2026):** every step has run on the testnet from this repository, on 16 November: account setup, key registration, the agent's recipient card, fUSD conversion, the approval, the link with its spending rule, mandates, bids through the relayer, and claims. The transactions are in [spikes.md](spikes.md) and the README's live-run table. Steps 1, 2, 8, 9 and 12 also run offline (`--offline`).
+**Status (24 November 2026):** every step has run on the testnet from this repository, on 16 November and again on 24 November (a fresh fUSD auction, a fresh mandate, the key linked again): account setup, key registration, the agent's recipient card, fUSD conversion, the approval, the link with its spending rule, mandates, bids through the relayer, and claims. The transactions are in [spikes.md](spikes.md) and the README's live-run table. Steps 1, 2, 8, 9 and 12 also run offline (`--offline`).
 
 Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/` (the owner's, the agent account's and the relayer's mnemonics) and `agent/` (the agent account's classical key, the agent's own keys, inbox, receipts, nonces).
 
 | # | Who | Command | Sends | Needs |
 |---|---|---|---|---|
-| 1 | Owner | `pnpm owner init` | nothing | — |
+| 1 | Owner | `pnpm run owner init` | nothing | — |
 | 2 | Agent | `pnpm agent init` | nothing | `agent/agent.env` from step 1 |
 | 3 | Owner | Claim the faucet for the owner, agent-account and relayer addresses step 1 printed (the owner also gets fUSD) | — | the owner's dashboard sign-in |
-| 4 | Owner | `pnpm owner register` | one classical `MsgRegisterPQCKeyV2` per account that has none (reads first; a repeat still costs its fee) | QOR on each account |
-| 5 | Owner | `pnpm owner register-agent` | hybrid `MsgRegisterKEMKey` signed with the agent account's keys; writes `agent/card.json` (QoreSeal recipient card, signed by the agent account) | step 4 |
-| 6 | Owner | `pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 [--daily-limit 500] [--commit-bid-signature '<sig>'] [--dry-run]` | one hybrid tx: `MsgUpdateSpendingRules` + `MsgRegisterAuthenticator` (agent key, `evm` permission, expiry = the limits' end) | step 4 |
-| 7 | Owner | `pnpm owner convert --amount 500` (the faucet pays fUSD as bank coins, spike S5), then `pnpm owner approve --spender 0x<auction> --amount 500` | opens a window scoped to fUSD for one tx, `approve`, closes the window | fUSD and QOR on the owner |
-| 7a | Owner | `pnpm owner topup --qor 2 [--slippage-bps 100] [--max-impact-bps 100] [--dry-run]`: more budget than the faucet's fUSD. Swaps QOR for fUSD on the AMM's fUSD/QOR pool at the chain's quote less the slippage tolerance, and converts that minimum to ERC-20 fUSD in the same transaction | one hybrid `MsgSwapExactIn` + `MsgConvertCoin` (0.15 QOR fee) | QOR on the owner |
-| 8 | Owner | `pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 --max-bids 5 --hours 24 --instructions "..." --deliver` | nothing (writes `owner/outbox/<nonce>.qoreseal`, and with `--deliver` copies it to `agent/inbox/`) | step 5 (the card), or `--offline` |
+| 4 | Owner | `pnpm run owner register` | one classical `MsgRegisterPQCKeyV2` per account that has none (reads first; a repeat still costs its fee) | QOR on each account |
+| 5 | Owner | `pnpm run owner register-agent` | hybrid `MsgRegisterKEMKey` signed with the agent account's keys; writes `agent/card.json` (QoreSeal recipient card, signed by the agent account) | step 4 |
+| 6 | Owner | `pnpm run owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 [--daily-limit 500] [--commit-bid-signature '<sig>'] [--dry-run]` | one hybrid tx: `MsgUpdateSpendingRules` + `MsgRegisterAuthenticator` (agent key, `evm` permission, expiry = the limits' end) | step 4 |
+| 7 | Owner | `pnpm run owner convert --amount 500` (the faucet pays fUSD as bank coins, spike S5), then `pnpm run owner approve --spender 0x<auction> --amount 500` | opens a window scoped to fUSD for one tx, `approve`, closes the window | fUSD and QOR on the owner |
+| 7a | Owner | `pnpm run owner topup --qor 2 [--slippage-bps 100] [--max-impact-bps 100] [--dry-run]`: more budget than the faucet's fUSD. Swaps QOR for fUSD on the AMM's fUSD/QOR pool at the chain's quote less the slippage tolerance, and converts that minimum to ERC-20 fUSD in the same transaction | one hybrid `MsgSwapExactIn` + `MsgConvertCoin` (0.15 QOR fee) | QOR on the owner |
+| 8 | Owner | `pnpm run owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 --max-bids 5 --hours 24 --instructions "..." --deliver` | nothing (writes `owner/outbox/<nonce>.qoreseal`, and with `--deliver` copies it to `agent/inbox/`) | step 5 (the card), or `--offline` |
 | 9 | Agent | `pnpm agent receive` | nothing (reads the owner's key with `eth_call` to `pqcKeyStatus`) | step 4 for the owner, or `--offline` |
 | 10 | Agent | `pnpm agent run --executor smart-account --rounds 3 --interval 30` (auctions read from the chain; `--factory 0x…` adds the issuer's text; `--auctions file.json` reads a file instead) | `MsgExecuteEVM` through the relayer. `--executor dry-run` (default) sends nothing | steps 6, 7, 11 |
 | 11 | Ops | `pnpm relayer --targets 0x<auction>` | relays the agent's `MsgExecuteEVM` (fee from the relayer) | relayer QOR |
@@ -24,12 +24,12 @@ Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/
 | 10b | Agent | `pnpm agent serve --executor smart-account --interval 60 --claim`: steps 9, 10 and 13 every minute until stopped (Ctrl-C finishes the current tick) | as steps 9, 10, 13 | as those steps |
 | 13 | Agent | after the auction settles: `pnpm agent bids`, then `pnpm agent claim --executor smart-account` (or `window`) | one `claim(bidId)` per unclaimed bid; tokens and refunds go to the bidder | the auction Settled, Failed or Cancelled |
 | 14 | Owner | `pnpm demo:testnet --check --auction 0x<auction>`, then without `--check` | the demo's scenes (section below) | everything above |
-| — | Owner | `pnpm owner window open --targets 0x<auction>,0x<factory> --blocks 3600 --max-txs 5` / `window close` | hybrid `MsgOpenEVMWindow` / `MsgCloseEVMWindow` for the agent account | step 4. Only on the fallback path (design R1), or for permissionless calls (open, finalize, claim) |
-| — | Owner | Fallback path (design R1, retired by S2; for comparison only): `pnpm owner fund-agent --amount 500`, `pnpm owner approve --from agent --spender 0x<auction> --amount 500`, `pnpm owner window open --targets 0x<auction> --max-txs 5`, then `pnpm agent run --executor window` | an fUSD transfer, an approval from the agent account, a window | QOR on owner and agent account |
-| — | Owner | `pnpm owner rules ...` (same flags as `link`) | `MsgUpdateSpendingRules` only | step 6 |
-| — | Owner | `pnpm owner revoke` | `MsgRevokeAuthenticator`: the agent's key stops working at once | step 6 |
-| — | Owner | `pnpm owner pause` / `pnpm owner resume` (`--agent-url http://127.0.0.1:8789`) | nothing: a Sign In With QoreChain message to the running agent (`agent serve --control-port 8789`), checked against the owner's ML-DSA-87 key on chain. Paused, the agent reads mandates and claims but places no bid; the state survives a restart | step 4 |
-| — | Anyone | `pnpm owner status`, `pnpm agent status`, `pnpm agent receipts` | nothing | — |
+| — | Owner | `pnpm run owner window open --targets 0x<auction>,0x<factory> --blocks 3600 --max-txs 5` / `window close` | hybrid `MsgOpenEVMWindow` / `MsgCloseEVMWindow` for the agent account | step 4. Only on the fallback path (design R1), or for permissionless calls (open, finalize, claim) |
+| — | Owner | Fallback path (design R1, retired by S2; for comparison only): `pnpm run owner fund-agent --amount 500`, `pnpm run owner approve --from agent --spender 0x<auction> --amount 500`, `pnpm run owner window open --targets 0x<auction> --max-txs 5`, then `pnpm agent run --executor window` | an fUSD transfer, an approval from the agent account, a window | QOR on owner and agent account |
+| — | Owner | `pnpm run owner rules ...` (same flags as `link`) | `MsgUpdateSpendingRules` only | step 6 |
+| — | Owner | `pnpm run owner revoke` | `MsgRevokeAuthenticator`: the agent's key stops working at once | step 6 |
+| — | Owner | `pnpm run owner pause` / `pnpm run owner resume` (`--agent-url http://127.0.0.1:8789`) | nothing: a Sign In With QoreChain message to the running agent (`agent serve --control-port 8789`), checked against the owner's ML-DSA-87 key on chain. Paused, the agent reads mandates and claims but places no bid; the state survives a restart | step 4 |
+| — | Anyone | `pnpm run owner status`, `pnpm agent status`, `pnpm agent receipts` | nothing | — |
 | 15 | Owner or agent | `pnpm agent audit --signers qor1<relayer>,qor1<agent-account>` (or `--published` for the published log): each receipt's transaction read through the QoreChain MCP server; exits 1 on a mismatch, a foreign signer or a missing ML-DSA-87 layer | nothing | the receipts log |
 | — | Anyone | `pnpm qore tx get <hash>`, `pnpm qore pq status <hash or address>`: one check by hand, the same tools as the audit | nothing | — |
 
@@ -39,7 +39,9 @@ Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/
 
 1. A mandate, signed and sealed by the owner, verified by the agent against the owner's key on chain.
 2. Plan, clamp, seal, `MsgExecuteEVM`: a landed bid.
-3. Refusals, each with its evidence: (a) over the per-transaction limit with the policy bypassed: the chain's `success=false`; (b) an fUSD transfer from the owner's account with the policy bypassed (the demo relayer allows the target so that the chain is what refuses); (c) a forged mandate: the agent's refusal code; (d) injected text in the auction description: the policy's clamp.
+3. Refusals, each with its evidence: (a) over the per-transaction limit with the policy bypassed: the chain's `success=false`; (b) a call to a contract that is not on the rule's list (the auction factory) with the policy bypassed (the demo relayer allows the target so that the chain is what refuses; an fUSD transfer would land, because the rule lists fUSD, see the threat model); (c) a forged mandate: the agent's refusal code; (d) injected text in the auction description: the policy's clamp.
+
+Scene 3b alone, against any target: `pnpm demo:testnet --auction 0x<auction> --off-target 0x<contract> [--signature 'f()' | --data 0x…]`. On 24 November it also showed the unlisted function, the unlisted token and the expired key. `pnpm owner …` would run npm's own `owner` command, so the owner's command line is always `pnpm run owner …`.
 
 ## Costs (estimates)
 

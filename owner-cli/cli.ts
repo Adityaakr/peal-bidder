@@ -1,21 +1,21 @@
 /**
  * The owner's command line.
  *
- *   pnpm owner init                  make the owner, agent-account and relayer accounts; give the agent its classical key
- *   pnpm owner status                what the chain says about the three accounts
- *   pnpm owner register              register ML-DSA-87 keys (owner, agent account, relayer) where missing
- *   pnpm owner register-agent        publish the agent's ML-KEM key and sign its recipient card (after `pnpm agent init`)
- *   pnpm owner mandate ...           write, sign and seal a mandate to the agent
- *   pnpm owner window open|close     open or close the agent's scoped EVM window
- *   pnpm owner convert --amount 500  turn the owner's fUSD bank coins (as the faucet pays them) into ERC-20 fUSD
- *   pnpm owner approve ...           approve fUSD to an auction (from the owner; --from agent on the fallback path)
- *   pnpm owner fund-agent ...        fallback path: move fUSD from the owner to the agent's account
- *   pnpm owner link ...              link the agent's key to the owner's account under a spending rule
- *   pnpm owner rules ...             replace the spending rule
- *   pnpm owner revoke                revoke the agent's key at once
- *   pnpm owner topup --qor 2 [--slippage-bps 100] [--max-impact-bps 100] [--no-convert] [--dry-run]
+ *   pnpm run owner init                  make the owner, agent-account and relayer accounts; give the agent its classical key
+ *   pnpm run owner status                what the chain says about the three accounts
+ *   pnpm run owner register              register ML-DSA-87 keys (owner, agent account, relayer) where missing
+ *   pnpm run owner register-agent        publish the agent's ML-KEM key and sign its recipient card (after `pnpm agent init`)
+ *   pnpm run owner mandate ...           write, sign and seal a mandate to the agent
+ *   pnpm run owner window open|close     open or close the agent's scoped EVM window
+ *   pnpm run owner convert --amount 500  turn the owner's fUSD bank coins (as the faucet pays them) into ERC-20 fUSD
+ *   pnpm run owner approve ...           approve fUSD to an auction (from the owner; --from agent on the fallback path)
+ *   pnpm run owner fund-agent ...        fallback path: move fUSD from the owner to the agent's account
+ *   pnpm run owner link ...              link the agent's key to the owner's account under a spending rule
+ *   pnpm run owner rules ...             replace the spending rule
+ *   pnpm run owner revoke                revoke the agent's key at once
+ *   pnpm run owner topup --qor 2 [--slippage-bps 100] [--max-impact-bps 100] [--no-convert] [--dry-run]
  *                                    swap QOR for fUSD on the AMM and convert the minimum out to ERC-20, in one transaction
- *   pnpm owner pause|resume [--agent-url http://127.0.0.1:8789]
+ *   pnpm run owner pause|resume [--agent-url http://127.0.0.1:8789]
  *                                    pause or resume the running agent, signed in with Sign In With QoreChain
  *
  * Keys stay in ~/.qore-peal-bidder/owner (QORE_BIDDER_HOME). Nothing is printed but addresses and hashes.
@@ -58,8 +58,8 @@ import {
   spendingRuleFor,
 } from "./smart-account.ts";
 
-/** S2 proved native-QOR limits and the call allowlist; the fUSD (ERC-20) limits are not yet exercised on chain. */
-const NOTE = "fUSD (ERC-20) denom limits are not yet exercised on the testnet; see docs/spikes.md";
+/** Where the rule's limits were each refused on chain, and what they do not bound. */
+const NOTE = "the fUSD limits, the call allowlist and the key expiry were each refused on the testnet (docs/spikes.md); a listed token can also be transferred by the linked key, within the limits (THREAT_MODEL.md)";
 
 /** Build a mandate from command-line flags. Amounts are whole fUSD; times are hours from `now`. */
 export function mandateFromFlags(flags: Flags, ctx: { owner: string; info: AgentPublicInfo; now: number }): PealMandateV1 {
@@ -109,7 +109,7 @@ export async function run(): Promise<void> {
       if (!existsSync(ag.account)) await exportAgentAccount(op.agentAccount, ag.account, owner.cosmos);
       // For local runs (`pnpm agent receive --offline`): the owner's public ML-DSA key, which the chain would otherwise supply.
       writeOwnerPublic(ag, owner.cosmos, (await loadAccount(op.owner)).pqc.publicKey);
-      out({ home, owner, agentAccount, relayer, next: "fund these accounts with test QOR, then: pnpm agent init; pnpm owner register" });
+      out({ home, owner, agentAccount, relayer, next: "fund these accounts with test QOR, then: pnpm agent init; pnpm run owner register" });
       return;
     }
     case "status": {
@@ -184,7 +184,7 @@ export async function run(): Promise<void> {
         );
       } else if (sub === "close") {
         out((await closeWindow(agentAccount)) ?? "no window to close");
-      } else throw new Error("usage: pnpm owner window open|close");
+      } else throw new Error("usage: pnpm run owner window open|close");
       return;
     }
     case "approve": {
@@ -278,7 +278,7 @@ export async function run(): Promise<void> {
       return;
     }
     default:
-      throw new Error("usage: pnpm owner init|status|register|register-agent|mandate|window|convert|approve|fund-agent|link|rules|revoke|topup|pause|resume");
+      throw new Error("usage: pnpm run owner init|status|register|register-agent|mandate|window|convert|approve|fund-agent|link|rules|revoke|topup|pause|resume");
   }
 }
 

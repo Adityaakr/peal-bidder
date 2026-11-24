@@ -9,8 +9,9 @@
  * mechanics come from qore-pq-kit's `smart-account` module; what stays here is
  * Peal Bidder's policy: the rule derived from a mandate.
  *
- * Still open from S2: ERC-20 `denomLimits` (the fUSD limits below) and the
- * linked key's expiry have not been exercised on chain yet (docs/spikes.md).
+ * The live runs of 16 and 24 November 2026 closed what S2 left open: the fUSD
+ * `denomLimits` below (per execution and per day) and the linked key's expiry
+ * were each refused on chain (docs/spikes.md).
  */
 import { checkValuePermissionRules, msg, qorechainTypes, validateSpendingRules, type EncodeObject } from "@qorechain/sdk";
 import {

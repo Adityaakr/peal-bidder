@@ -1,5 +1,5 @@
 /**
- * `pnpm owner topup`: QOR to fUSD on the AMM, converted to ERC-20 in the same
+ * `pnpm run owner topup`: QOR to fUSD on the AMM, converted to ERC-20 in the same
  * transaction, priced by the chain's own quote.
  */
 import { describe, expect, it } from "vitest";

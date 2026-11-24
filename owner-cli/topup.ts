@@ -1,5 +1,5 @@
 /**
- * `pnpm owner topup --qor 2`: top up the fUSD budget from QOR on the chain's
+ * `pnpm run owner topup --qor 2`: top up the fUSD budget from QOR on the chain's
  * AMM, in one hybrid transaction.
  *
  * The agent bids in fUSD, and the faucet pays a fixed amount of it. An owner

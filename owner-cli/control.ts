@@ -1,6 +1,6 @@
 /**
- * Owner side of the brake (agent/control.ts): `pnpm owner pause` and
- * `pnpm owner resume` sign in to the running agent with Sign In With QoreChain.
+ * Owner side of the brake (agent/control.ts): `pnpm run owner pause` and
+ * `pnpm run owner resume` sign in to the running agent with Sign In With QoreChain.
  *
  * The agent issues a nonce; the owner signs a SIWQ message for the agent's
  * domain, naming the action and the agent as resources, with both of the

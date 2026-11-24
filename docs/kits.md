@@ -34,7 +34,7 @@ Found by reading the project pages of all 63 entries on build.qorechain.io on 16
 |---|---|---|---|
 | **QoreChain SDK** (`@qorechain/sdk`, `@qorechain/evm`) | yes | Accounts, hybrid transactions, the smart-account messages (spending rule, linked key, `MsgExecuteEVM`), windows, chain reads | in use since the first PR |
 | **qorechain-pqc** (`@qorechain/pqc`) | yes | The receipts log's ML-DSA-87 signatures: signing, checking one line, and checking a whole log in one `batchVerify` (the agent on restart, the browser on the live page). Byte-identical to before: QoreSign's `pqSign` is this package's `mldsa87` | this PR |
-| **QoreSign** (`@qorechain/qoresign`) | **in use** | Hybrid signing of every native transaction, the mandate's signature; plus **Sign In With QoreChain**: the owner pauses or resumes a running agent (`pnpm owner pause`), checked against the owner's on-chain ML-DSA-87 key | in use; SIWQ in `agent/control.ts` |
+| **QoreSign** (`@qorechain/qoresign`) | **in use** | Hybrid signing of every native transaction, the mandate's signature; plus **Sign In With QoreChain**: the owner pauses or resumes a running agent (`pnpm run owner pause`), checked against the owner's on-chain ML-DSA-87 key | in use; SIWQ in `agent/control.ts` |
 | **QoreSeal** (`@qorechain/qoreseal`) | yes | Mandates sealed to the agent's ML-KEM-1024 key; the agent's key in the on-chain encryption key registry | in use |
 | **QoreX integrations** (`@qorechain/qorex-types`) | yes | The web app's QoreX connection: the kit's provider types, EIP-6963 discovery by QoreX's rdns, the capability check and `qorexSignAndBroadcast`, in place of hand-written types | this PR |
 | **MCP + qore CLI** (`@qorechain/mcp`, `@qorechain/qore-cli`) | **in use** | An AI agent should audit itself with the chain's own AI tooling: `pnpm agent audit` replays the receipts against the chain through the QoreChain MCP server (each transaction's status and its hybrid ML-DSA-87 layer verified against the signer's registered key, the owner's key and proof of possession). A project `.mcp.json` lets the owner's own assistant ask the same questions; `qore` covers the runbook's one-off checks | `agent/audit.ts`, `agent/qorechain-mcp.ts`, `.mcp.json`; audit of the live log: 8 of 8 transactions agree, all hybrid-verified ([spikes.md](spikes.md)) |
@@ -60,7 +60,7 @@ The addresses to list on the project page are the Bidder's three accounts (owner
 | **QoreSeal and the encryption key registry** | yes | the agent account's `MsgRegisterKEMKey` | verifies today |
 | **Smart accounts and spending rules** | yes | the owner's spending rule and the agent's linked key; every bid is a `MsgExecuteEVM` under it | verifies today |
 | **Test tokens fUSD, fETH, fBTC** | yes | fUSD is the budget: `MsgConvertCoin`, `approve`, escrow, claims | verifies today |
-| **AMM pools** | yes | The owner tops up the fUSD budget from QOR on the fUSD/QOR pool, priced by the chain's own quote with a minimum out, and converts the minimum to ERC-20 in the same transaction: `pnpm owner topup` (`owner-cli/topup.ts`). Live: `3FF7C996…150D` | in use; verifies on the owner's address |
+| **AMM pools** | yes | The owner tops up the fUSD budget from QOR on the fUSD/QOR pool, priced by the chain's own quote with a minimum out, and converts the minimum to ERC-20 in the same transaction: `pnpm run owner topup` (`owner-cli/topup.ts`). Live: `3FF7C996…150D` | in use; verifies on the owner's address |
 | **MCP server or qore CLI** | yes | `@qorechain/mcp` in `package.json`; the agent's audit | in use |
 | **QoreScan** | yes | `@qorechain/qorescan` in `package.json`; the CBOM in `docs/cbom/` | in use |
 | **Sign In With QoreChain** | yes | The owner pauses or resumes a running agent with a SIWQ message the agent verifies against the owner's on-chain key (`agent/control.ts`). Off chain by design, so DECLARED | in use |
@@ -99,11 +99,11 @@ Leave unticked: create-qorechain-dapp, Wallet adapter, RDK, Asset Kit, Custody k
 
 | Feature | Expected | Evidence |
 |---|---|---|
-| Hybrid ML-DSA-87 transactions | VERIFIED | every transaction of the three accounts, e.g. the bid `27CAB8D0…ED61`; the audit verified the layer on all 8 relayed ones |
+| Hybrid ML-DSA-87 transactions | VERIFIED | every transaction of the three accounts, e.g. the bid `27CAB8D0…ED61`; the audit verified the layer on all 14 relayed ones |
 | PQC key registration with proof of possession | VERIFIED | `41A99E6D…E5F8` (owner), `DC3E3F91…4DE5` (agent account), `1C13DC5B…79B8` (relayer) |
 | EVM window (incl. scoped) | VERIFIED | the agent account's window scoped to fUSD, `53530E8D…C043`, its call inside `02C0C8E2…AB5E`, closed by `702BC899…1502` (`pnpm demo:window`); the owner's window scoped to fUSD, `F4AB3A44…4219`, closed by `2A42A368…B455` |
 | QoreSeal and the encryption key registry | VERIFIED | the agent account's `MsgRegisterKEMKey`, `69839690…C325` |
-| Smart accounts and spending rules | VERIFIED | the link with the spending rule, `249EC850…F8D2`; the chain's refusals `4012FE2E…C3A9` (per-bid limit) and `B1E1DAD2…A13C` (daily limit) |
+| Smart accounts and spending rules | VERIFIED | the link with the spending rule, `249EC850…F8D2`; the chain's refusals `4012FE2E…C3A9` (per-bid limit) and `B1E1DAD2…A13C` (daily limit); again on 24 November: link `85424ED4…48B6`, refusals `E072DB5A…F0DD` (per-bid), `38D5FFC1…3D89` (daily), `E7BFB205…4E88` (contract), `77CA465A…35C8` (function), `4D659EE2…C34C` (token), `317F7D5D…F3A1` (key expiry) |
 | Test tokens fUSD, fETH, fBTC | VERIFIED | fUSD: conversion `3D32143F…8520`, approval, escrow and claims |
 | AMM pools | VERIFIED | the owner's top-up `3FF7C996…150D` (pool 2, fUSD/QOR) |
 | MCP server or qore CLI | VERIFIED | `@qorechain/mcp` in `package.json` |

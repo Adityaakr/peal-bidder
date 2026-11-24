@@ -27,29 +27,31 @@ pnpm install
 pnpm web                      # http://localhost:5173
 ```
 
-1. **The live agent** (`#/agent`): its 21 receipts verify in your browser (hash chain and ML-DSA-87 signatures), every transaction hash is looked up on the testnet, and the owner's key, spending rule and auctions are read live.
-2. **Your agent** (`#/try`): "Create a guest account" (keys made in the browser, no funds), then "Sign and send to my agent". Your agent opens the sealed mandate, checks your ML-DSA-87 signature, plans, clamps and seals a bid to the auction's real 2-of-3 committee, and stops before sending.
+1. **The live agent** (`#/agent`): its 42 receipts verify in your browser (hash chain and ML-DSA-87 signatures), every transaction hash is looked up on the testnet, and the owner's key, spending rule and auctions are read live.
+2. **Your agent** (`#/try`): "Create a guest account" (keys made in the browser, no funds), then "Sign and send to my agent". Your agent opens the sealed mandate, checks your ML-DSA-87 signature, plans, clamps and seals a bid to the real 2-of-3 committee of an open fUSD auction (`0xe0462A491b23CAb0efDEf92c0B0878d22B871EC1`, open until 17 December 2026, 00:00 UTC), and stops before sending.
 3. **Try to break it**: forge, tamper with, replay, expire or misdirect a mandate, or feed the agent an injected plan. Each is refused with its code, or clamped, with a signed receipt.
 4. In a terminal: `pnpm test` (268 offline tests), `pnpm demo:offline` (the whole mandate flow with throwaway keys), and `pnpm agent audit --published` (the live log checked against the chain through the QoreChain MCP server; no key needed).
 
-**Re-checked 24 November 2026 from a fresh clone:** `pnpm test` 268 passed (3 live checks skipped), `pnpm typecheck` clean, `pnpm demo:offline` ran, `pnpm web:smoke` passed its 14 checks against the live testnet, and `pnpm agent audit --published` found 8 of 8 transactions as recorded, each hybrid-verified.
+**Re-checked 24 November 2026:** `pnpm test` 268 passed (3 live checks skipped), `pnpm typecheck` clean, `pnpm web:smoke` passed its 14 checks against the live testnet, and `pnpm agent audit --published` found 14 of 14 transactions as recorded, each hybrid-verified. `pnpm demo:offline` ran from a fresh clone the same day.
 
 ## The category's requirements, and where to check them
 
 | Requirement | What the Bidder does | Check it |
 |---|---|---|
-| Smart-account spending rules | The agent's key is linked to the owner's account under a rule: fUSD only, at most 100 fUSD a bid and 400 a day, only `commitBid` and `claim` on the mandate's auction | [spending rule](https://api-testnet.qore.host/qorechain/abstractaccount/v1/accounts/qor14ndj6q3zp7hku9a4hkjnmhvsk3kegf46g002j5/spending_rules); the chain refused a bid over the per-bid limit (`4012FE2E…C3A9`) and one past the daily limit (`B1E1DAD2…A13C`) |
-| Target limits | Off the rule's call list, the chain refuses | `8FB22F76…3049`: "authenticator not permitted" |
-| Duration limits | The linked key expires 24 hours after linking | [linked key](https://api-testnet.qore.host/qorechain/abstractaccount/v1/accounts/qor14ndj6q3zp7hku9a4hkjnmhvsk3kegf46g002j5/authenticators): `expiry_unix` 1794905674 (17 November 2026, 08:54 UTC); it has expired, so the key can do nothing now |
-| Scoped EVM window (transaction, value, duration and target limits) | The agent account's EVM calls run only inside a window the owner opens for it, which needs the agent account's ML-DSA-87 key (the owner holds it; the agent has only its classical key), and the CLI refuses an unscoped one. `pnpm demo:window` (24 November) shows each limit on the agent's own account: the owner opened a window for fUSD only, 1 transaction, 300 blocks, 25,000 uqor; the agent's in-target call landed; then the chain refused, at broadcast, a call to another contract ("does not list … as an allowed recipient"), a second call (0 transactions left), a call carrying 1 QOR in a second window allowing 50,000 uqor, and a call after that window's 40 blocks ran out | window opened, hybrid ML-DSA-87 signed by the agent account: `53530E8DD266A9C34F61D922D2D028C9F2536F9C30EEEF5F56508FD6C94BC043`; the agent's classical-only call inside it: `02C0C8E2A7F1043C1C45CA9EC49D1A0FE99F757D8E90F485551E794F755DAB5E` (EVM `0xc4de6682…6977`); closed: `702BC899F14997AD18D6B632E2B7C6D2F753C9BB2AA57F7C2390345EADED1502`; second window: `6511530740B4F630A1892111AD5C340A6679813D276EBD61F8D3D7155731C47F`. A refused call is rejected before it enters a block, so it has no hash; the chain's answers are in [docs/spikes.md](docs/spikes.md#2026-11-24-utc-the-agents-own-scoped-window). The owner's own window, scoped to fUSD: `F4AB3A44…4219`, closed by `2A42A368…B455` |
-| Authenticated messaging | Mandates are QoreSign hybrid signatures in QoreSeal envelopes, checked against the owner's key on chain; the owner's pause and resume are Sign In With QoreChain messages checked the same way | `test/inbox.test.ts` (35 refusal cases); the forged mandate refused live (receipt 4); the agent's [ML-KEM-1024 key](https://api-testnet.qore.host/qorechain/pqc/v1/kem/qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur) |
-| An AI agent acting on chain | Claude Opus 5.5 planned five live bids; three landed and won 44.65 PEAL-T, claimed; it disregarded an injected "SYSTEM OVERRIDE" in the auction text | the live-run table under [Network](#network) |
+| Smart-account spending rules | The agent's key is linked to the owner's account under a rule: fUSD only, at most 100 fUSD a bid and (24 November) 200 a day, only `commitBid` and `claim` on the mandate's auction | [spending rule](https://api-testnet.qore.host/qorechain/abstractaccount/v1/accounts/qor14ndj6q3zp7hku9a4hkjnmhvsk3kegf46g002j5/spending_rules); on 24 November two bids within it landed, and the chain refused a bid over the per-bid limit (`E072DB5A…F0DD`) and one past the daily limit (`38D5FFC1…3D89`). Both were also refused on 16 November (`4012FE2E…C3A9`, `B1E1DAD2…A13C`) |
+| Target limits | Off the rule's call list, the chain refuses | 24 November: a contract it does not list (`E7BFB205…4E88`), a function it does not list on the auction it does (`77CA465A…35C8`) and a token it does not list (`4D659EE2…C34C`); 16 November: `8FB22F76…3049` |
+| Duration limits | The linked key expires at the time set when it is linked (2 hours on 24 November) | At 20:46:40, 33 seconds after its expiry, the chain refused the key a listed call, `claim`: "linked key has expired" (`317F7D5D…F3A1`, block 10,688,137); [linked key](https://api-testnet.qore.host/qorechain/abstractaccount/v1/accounts/qor14ndj6q3zp7hku9a4hkjnmhvsk3kegf46g002j5/authenticators): `expiry_unix` 1795553167 (24 November 2026, 20:46:07 UTC) |
+| Scoped EVM window (transaction, value, duration and target limits) | The agent account's EVM calls run only inside a window the owner opens for it, which needs the agent account's ML-DSA-87 key (the owner holds it; the agent has only its classical key), and the CLI refuses an unscoped one. `pnpm demo:window` (24 November) shows each limit on the agent's own account: the owner opened a window for fUSD only, 1 transaction, 300 blocks, 25,000 uqor; the agent's in-target call landed; then the chain refused, at broadcast, a call to another contract ("does not list … as an allowed recipient"), a second call (0 transactions left), a call carrying 1 QOR in a second window allowing 50,000 uqor, and a call after that window's 40 blocks ran out | window opened, hybrid ML-DSA-87 signed by the agent account: `53530E8DD266A9C34F61D922D2D028C9F2536F9C30EEEF5F56508FD6C94BC043`; the agent's classical-only call inside it: `02C0C8E2A7F1043C1C45CA9EC49D1A0FE99F757D8E90F485551E794F755DAB5E` (EVM `0xc4de6682…6977`); closed: `702BC899F14997AD18D6B632E2B7C6D2F753C9BB2AA57F7C2390345EADED1502`; second window: `6511530740B4F630A1892111AD5C340A6679813D276EBD61F8D3D7155731C47F`. A refused call is rejected before it enters a block, so it has no hash; the chain's answers are in [docs/spikes.md](docs/spikes.md#2026-11-24-utc-the-agents-own-scoped-window). The same scenes ran again during the live run of 24 November, with the same five answers (windows `FF39EA37…8931` and `1B841EBA…7690`). The owner's own window, scoped to fUSD: `F4AB3A44…4219`, closed by `2A42A368…B455`; on 24 November `17754EC3…80D9`, closed by `5911FE49…D9E7` |
+| Authenticated messaging | Mandates are QoreSign hybrid signatures in QoreSeal envelopes, checked against the owner's key on chain; the owner's pause and resume are Sign In With QoreChain messages checked the same way | `test/inbox.test.ts` (35 refusal cases); live, the agent refused a forged mandate (receipts 4 and 33), a replayed one (27) and an expired one (28); the agent's [ML-KEM-1024 key](https://api-testnet.qore.host/qorechain/pqc/v1/kem/qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur) |
+| An AI agent acting on chain | Claude Opus 5.5 planned nine live bids; five landed and won 77.65 PEAL-T, all claimed; on both days it disregarded an injected "SYSTEM OVERRIDE" in the auction text | the live-run table under [Network](#network) |
 
 Full hashes, and every kit and network feature with its evidence, are in [Network](#network) and [docs/kits.md](docs/kits.md). Each hash opens at `https://api-testnet.qore.host/cosmos/tx/v1beta1/txs/<hash>`; on [explore.qore.network](https://explore.qore.network) switch to **Testnet** first (it opens on mainnet).
 
 ## Status
 
-**Live on the testnet since 16 November 2026.** The agent accepted two mandates signed by its owner, each checked against the owner's ML-DSA-87 key on chain. Claude Opus 5.5 planned five bids: three landed through the owner's smart account, and the chain's spending rule refused two (a daily limit already spent, and a rule that did not list fUSD). In the demo scenes, where the agent's own policy was bypassed on purpose, the chain also refused a bid over the per-bid limit and a call to a contract the rule does not allow. The agent refused a forged mandate itself. After settlement it claimed all three bids: 44.65 PEAL-T. Every decision is a hash-chained, ML-DSA-87-signed receipt, published in [`apps/web/public/live/`](apps/web/public/live) and checked line by line in the browser. The agent's linked key expired on 17 November, as its rule set (24 hours); a new run starts with the owner linking it again. What is not done yet is under [Limits](#limits).
+**Live on the testnet: two runs, 16 and 24 November 2026.** Across both, the agent accepted four mandates signed by its owner, each checked against the owner's ML-DSA-87 key on chain, and refused four others: two forged, one replayed and one expired. Claude Opus 5.5 planned nine bids: five landed through the owner's smart account and four were refused by the chain (the daily limit, a rule that did not list fUSD, no fUSD allowance yet, and the daily limit again). In the demo scenes, where the agent's own policy was bypassed on purpose, the chain also refused a bid over the per-bid limit, calls to a contract, a function and a token the rule does not list, and a listed call with the expired key. After each auction settled, the agent claimed every bid it had won: 77.65 PEAL-T in all. Every decision is a hash-chained, ML-DSA-87-signed receipt, published in [`apps/web/public/live/`](apps/web/public/live) and checked line by line in the browser.
+
+The 24 November run used a new fUSD auction on Peal Sealed Auction's existing factory (`0xdaaD4e3bD3122ae249AaF3b89a3656DC1bC6c381`), settled the same evening. A second one, `0xe0462A491b23CAb0efDEf92c0B0878d22B871EC1`, is open for judges until 17 December 2026, 00:00 UTC; the playground seals its bids to it. The agent's linked key expired at 20:46 UTC on 24 November, as its rule set (2 hours); a new run starts with the owner linking it again. What is not done yet is under [Limits](#limits).
 
 ## How it stays inside its mandate
 
@@ -68,7 +70,7 @@ Full hashes, and every kit and network feature with its evidence, are in [Networ
           │        and remaining budget, bid count, validity window
           ▼
           submit ─▶ the chain enforces again: spending rule on the owner's smart account,
-          │         fUSD allowance                       (live on the testnet, 16 November)
+          │         fUSD allowance                       (live on the testnet, 16 and 24 November)
           ▼
           receipt ─▶ hash-chained, ML-DSA-87-signed log of every decision
 ```
@@ -93,8 +95,8 @@ Layers, from the outside in:
 | `agent/policy.ts`, `agent/auction.ts` | The deterministic clamp and the auction's price arithmetic |
 | `agent/planner/` | Claude Opus 5.5 planner, rule-based planner, and `decide` (planner then policy) |
 | `agent/audit.ts`, `agent/qorechain-mcp.ts` | `pnpm agent audit`: the receipts checked against the chain through the QoreChain MCP server (`@qorechain/mcp`, run in process): each transaction's outcome as recorded, its hybrid ML-DSA-87 layer verified against the signer's registered key, its signer, an `unknown` outcome resolved, and the owner's key with proof of possession. `--published` audits the live agent's published log, with no key |
-| `agent/control.ts`, `owner-cli/control.ts` | The owner's brake: `pnpm owner pause` / `resume` sign in to the running agent with **Sign In With QoreChain** (QoreSign's SIWQ); the agent checks the message against the owner's ML-DSA-87 key on chain and stops planning, instantly and for free, until resumed. Each change is a signed receipt |
-| `owner-cli/topup.ts` | `pnpm owner topup --qor 2`: top up the fUSD budget from QOR on the chain's **AMM**, priced by the chain's own quote, with a minimum out and an impact limit; the swap and the conversion of the minimum to ERC-20 fUSD are one hybrid transaction |
+| `agent/control.ts`, `owner-cli/control.ts` | The owner's brake: `pnpm run owner pause` / `resume` sign in to the running agent with **Sign In With QoreChain** (QoreSign's SIWQ); the agent checks the message against the owner's ML-DSA-87 key on chain and stops planning, instantly and for free, until resumed. Each change is a signed receipt |
+| `owner-cli/topup.ts` | `pnpm run owner topup --qor 2`: top up the fUSD budget from QOR on the chain's **AMM**, priced by the chain's own quote, with a minimum out and an impact limit; the swap and the conversion of the minimum to ERC-20 fUSD are one hybrid transaction |
 | `common/cbom.ts`, `scripts/cbom.ts`, `docs/cbom/` | `pnpm cbom`: the Bidder's cryptographic inventory with **QoreScan** (`@qorechain/qorescan`): a CycloneDX 1.6 CBOM of the testnet, the three accounts' keys and the endpoints' TLS, summarised in `docs/cbom/README.md`; the threat model's "Cryptographic inventory" is checked against it by a test |
 | `.mcp.json` | The QoreChain MCP server for the owner's own assistant (Claude Code and other MCP clients): the same read-only tools the audit uses. `pnpm qore …` runs them from a terminal (`@qorechain/qore-cli`) |
 | `agent/receipts.ts` | The receipts log: hash-chained, signed with the agent's ML-DSA-87 receipt key (qorechain-pqc's `mldsa87`; a whole log is checked with `batchVerify`) |
@@ -137,20 +139,20 @@ pnpm demo:offline   # the mandate channel and planner end to end, with throwaway
 Keys and state live outside the repository, in `~/.qore-peal-bidder/` (or `QORE_BIDDER_HOME`): `owner/` for the owner and `agent/` for the agent. In a real deployment those are two machines, and the agent is only given `agent/`. [docs/runbook.md](docs/runbook.md) walks through every step on the testnet. In short:
 
 ```sh
-pnpm owner init                       # owner, agent-account and relayer accounts; the agent gets its classical key only
+pnpm run owner init                       # owner, agent-account and relayer accounts; the agent gets its classical key only
 pnpm agent init                       # the agent makes its QoreSeal and receipt keys; writes agent/public.json
 # fund the three accounts from the faucet, then:
-pnpm owner register                   # ML-DSA-87 keys on chain
-pnpm owner register-agent             # the agent's ML-KEM key on chain, and its signed recipient card
-pnpm owner convert --amount 500       # the faucet pays fUSD as bank coins; the auction needs the ERC-20
-pnpm owner topup --qor 2              # more budget: QOR to fUSD on the AMM, converted to ERC-20 in the same transaction
-pnpm owner approve --spender 0x<auction> --amount 500
-pnpm owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40   # spending rule + linked key
-pnpm owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 \
+pnpm run owner register                   # ML-DSA-87 keys on chain
+pnpm run owner register-agent             # the agent's ML-KEM key on chain, and its signed recipient card
+pnpm run owner convert --amount 500       # the faucet pays fUSD as bank coins; the auction needs the ERC-20
+pnpm run owner topup --qor 2              # more budget: QOR to fUSD on the AMM, converted to ERC-20 in the same transaction
+pnpm run owner approve --spender 0x<auction> --amount 500
+pnpm run owner link --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40   # spending rule + linked key
+pnpm run owner mandate --auctions 0x<auction> --budget 500 --max-per-bid 100 --max-tick 40 \
   --instructions "Take part in the buyback at a fair price." --deliver
 pnpm agent receive                    # verified against the owner's key on chain
 pnpm agent serve --executor smart-account --interval 60 --claim --control-port 8789   # the long-running agent; Ctrl-C stops it cleanly
-pnpm owner pause                      # the brake: no new bid until `pnpm owner resume` (Sign In With QoreChain, no transaction)
+pnpm run owner pause                      # the brake: no new bid until `pnpm run owner resume` (Sign In With QoreChain, no transaction)
 # or one round at a time: pnpm agent run --executor smart-account (dry-run is the default executor)
 pnpm agent bids                       # after the close: the agent's bids and what they won
 pnpm agent claim --executor smart-account
@@ -192,7 +194,7 @@ The owner's OpenRouter key never reaches the site: the public planner is the rul
 1. On vercel.com: **Add New → Project → Import Git Repository**, and pick `Adityaakr/peal-bidder` (if it is not listed, give Vercel's GitHub app access to the repository).
 2. Project name `peal-bidder`; Framework Preset **Other**; Root Directory `./`. Leave the build, output and install overrides off, so `vercel.json` applies.
 3. No environment variables. **Deploy.** Each push to `main` deploys again.
-4. Check it: the landing page's console says "21 receipts · ML-DSA-87 verified in this browser"; `#/agent` reads the owner's spending rule (through the REST rewrite); `#/try` loads the auction card and seals a bid to the committee.
+4. Check it: the landing page's console says "42 receipts · ML-DSA-87 verified in this browser"; `#/agent` reads the owner's spending rule (through the REST rewrite); `#/try` loads the auction card and seals a bid to the committee.
 
 The production build was checked on 21 November from a clean clone with an empty package store, and served under `vercel.json`'s rewrites and headers.
 
@@ -215,7 +217,7 @@ The production build was checked on 21 November from a clean clone with an empty
 - **The published receipts** (`test/web-live.test.ts`): only public material is published, the log verifies, one edited line breaks it, and the figures the landing page shows.
 - **Web smoke** (`pnpm web:smoke`, CI job `web`): in headless Chromium, the landing page renders with no sideways scroll at 1280, 768 and 390 px and the live receipts verify in the page; a guest account is created; its agent accepts a mandate, plans, clamps and seals a bid to the real committee; a forged, a tampered, a replayed, an expired and a misdirected mandate are refused with their codes; an injected plan is clamped. It reads the public testnet and sends nothing.
 
-The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of API responses (each says so in its `provenance` field). An answer recorded from the real model through OpenRouter is in `test/fixtures/openrouter-recorded/`, and the five live planning rounds are in the published receipts.
+The planner fixtures in `test/fixtures/claude/` are hand-written in the shape of API responses (each says so in its `provenance` field). An answer recorded from the real model through OpenRouter is in `test/fixtures/openrouter-recorded/`, and the nine live planning rounds are in the published receipts.
 
 ## Network
 
@@ -231,7 +233,7 @@ The Bidder deploys no contract of its own: it bids in [Peal Sealed Auction](http
 | Agent account | `qor1k7at260yd632szpqt8fguukwuf3l52fpfz8lur` (`0xb7Bab569E46Ea2a8082059D28E72CeE263Fa2921`) | ML-DSA-87 key; its ML-KEM-1024 key in the encryption key registry |
 | Relayer | `qor16tsewlj6jpt4v2esmrhuk7z2xems6e09z5rpzc` (`0xD2E1977E5A9057562b30D8EFCB784a36770D65E5`) | signs and broadcasts each bid and claim as a hybrid `MsgExecuteEVM` |
 
-**The live run** (16 November 2026, in Peal Sealed Auction's demo auctions `0x481FBb2C84582BF7c258c46BF523DEEbDe51E990` and `0xE5fC1b2Fc5dE7EeB39620915bE9C1037467aBe76`). Each hash opens on the testnet's REST API at `https://api-testnet.qore.host/cosmos/tx/v1beta1/txs/<hash>`. The setup transactions and the chain's refusal texts are in [docs/spikes.md](docs/spikes.md).
+**The first live run** (16 November 2026, in Peal Sealed Auction's demo auctions `0x481FBb2C84582BF7c258c46BF523DEEbDe51E990` and `0xE5fC1b2Fc5dE7EeB39620915bE9C1037467aBe76`). Each hash opens on the testnet's REST API at `https://api-testnet.qore.host/cosmos/tx/v1beta1/txs/<hash>`. The setup transactions and the chain's refusal texts are in [docs/spikes.md](docs/spikes.md).
 
 | Case | Result | Transaction |
 |---|---|---|
@@ -245,12 +247,31 @@ The Bidder deploys no contract of its own: it bids in [Peal Sealed Auction](http
 | A bid within the raised daily limit (Claude chose tick 15) | landed | `135C6D617F7318B286BE5821F4B96A98FEE7C4AE2AFBD7220DFB13D3A958A968` |
 | Claims after settlement (16.5 + 16.5 + 11.65 PEAL-T) | landed | `99000161E207CC2A9E9E68D5CE1628138CB72C3B460C153D9DD47965DD9407AD`, `47FB6C58DFE57A02238F4F1B27DCCA7D1AC2EA7E58EEE477D204375CF314BFF6`, `93D74F33F6C4F471855B98F892A3307C1FAC6B01FB848EB564E12E0162141341` |
 
-So both fUSD limits of the spending rule, per bid and per day, were exercised on chain and held. Two findings came out of the run: a token listed in the spending rule can also be transferred by the agent's key within the limits (see the threat model), and events of `MsgExecuteEVM` calls do not reach `eth_getLogs`.
+**The second live run** (24 November 2026, in a new fUSD auction on the same factory, `0xdaaD4e3bD3122ae249AaF3b89a3656DC1bC6c381`: 100 PEAL-T for fUSD, reserve 1 fUSD, tick 0.5, bidding until 19:43:48 UTC). The auction was created with `0xf281266a…9c8b` and settled with `0x3aa5173d…8d53` (EVM hashes).
+
+| Case | Result | Transaction |
+|---|---|---|
+| The owner links the agent's key again: 100 fUSD a bid, 200 a day, `commitBid` and `claim` on this auction only, expiry 20:46:07 UTC | landed | `85424ED42ADF5CF76BF4889F64E7AB86055C4CB4DA711FEEF56E9641C87348B6` |
+| A bid before the owner approved any fUSD | refused by the chain: "execution reverted" | `390FB4102CDA18306AC6AB5EC06C0150B15F7E2EB21C21AED8D113A2679AAEEC` |
+| A replayed, an expired and a forged mandate | refused by the agent: `REPLAYED` (receipt 27), `EXPIRED` (28), `SIGNATURE_INVALID` (33) | off chain |
+| In-mandate bid, planned by Claude Opus 5.5 (tick 10, 16.5 PEAL-T, 100 fUSD) | landed | `391266A8187B4A2CAD622BD5D926F90390F248CD8C1CE2514F61E93597591CE3` |
+| 110 fUSD, over the per-bid limit, the agent's policy bypassed | refused by the chain: "per-tx limit 100000000 … exceeded (attempted 110000000)" | `E072DB5AF23128EB12BD15A39D2F282A0A206AB4AD51AED738B070C69EABF0DD` |
+| A call to a contract the rule does not list (the factory) | refused by the chain: "authenticator not permitted" | `E7BFB205B5BC0B87846F8DE95DF358063916B35063E15A247C149C5F3AEF4E88` |
+| "SYSTEM OVERRIDE" injected into the auction text | Claude disregarded it; the second bid stayed in the mandate and landed | `24EED0D94743567B2D56D758D225BAB13ECF120E1271F5354A7B6F4B0CF89113` |
+| A third in-mandate bid, after the day's 200 fUSD was spent | refused by the chain: "daily limit … exceeded: spent 200000000, remaining 0" | `38D5FFC17E7DA70D436204BF89BF2903189689FC6331DEE13E9993E4AE6D3D89` |
+| A function the rule does not list, on the auction it does (`closeCommit()`) | refused by the chain | `77CA465A9D31C00D7BE152B1874B7DE036660C14A2AF31FBE4117F39EE8D35C8` |
+| A token the rule does not list (a PEAL-T transfer) | refused by the chain | `4D659EE218B6D49B3CD7313D2E3AF644BE87EA41F4EC82C1736334239309C34C` |
+| Claims after settlement (16.5 + 16.5 PEAL-T at 1 fUSD) | landed | `8B5D46D60BF12D286C12D6FFB33C44011E4F0AC3C4126B6BDF1945FF5C6E3461`, `B8E2E2D73633F2BD3E9932B93E666AB9DD996B7046D817704E081E94E638FDD8` |
+| A listed call (`claim`) with the linked key after its expiry | refused by the chain: "linked key has expired; re-link required: session key expired" | `317F7D5D3B64EE45819213F45C83C1E1A3921ED5D1319B243CA022D5DFD0F3A1` |
+
+Peal Sealed Auction's own `audit` re-opened both bids from the released shares and agreed with the contract; the settlement transactions are in [docs/spikes.md](docs/spikes.md#2026-11-24-utc-the-second-live-run).
+
+So both fUSD limits of the spending rule, per bid and per day, were exercised on chain on both days and held. Two findings came out of the run: a token listed in the spending rule can also be transferred by the agent's key within the limits (see the threat model), and events of `MsgExecuteEVM` calls do not reach `eth_getLogs`.
 
 ## Limits
 
 - **The guest agent on the site does not send.** It signs, seals and encodes a real bid to the auction's real committee, then stops. Bidding on chain from the browser is roadmap item 8.
-- **No live bids since 16 November.** The agent's linked key expired on 17 November, and on 24 November no Peal auction priced in fUSD is taking bids (the two open demo auctions are priced in PEAL-T, and the Bidder's mandates and spending rule are fUSD only). The published log is that run.
+- **The agent is not bidding around the clock.** It ran on 16 and 24 November; its linked key expired on 24 November at 20:46 UTC, so it can do nothing until the owner links it again. It placed no bid in the judges' auction (`0xe0462A491b23CAb0efDEf92c0B0878d22B871EC1`), which stays open until 17 December 2026 and is settled after that by the Sealed Auction committee.
 - **The public planner is the rule-based one.** Claude Opus 5.5 plans only on the owner's machine, with the owner's key; the site never sees it.
 - **A stolen agent key can move fUSD within the limits** to an address of its choosing (at most the per-bid limit per call and the daily limit per day), because the chain lets a linked key transfer any token its rule lists. The threat model gives the bound and the mitigations.
 - QoreSeal is a 0.1.0 draft pending external review, and the endpoints' TLS certificates are ECDSA ([docs/cbom](docs/cbom/README.md)).

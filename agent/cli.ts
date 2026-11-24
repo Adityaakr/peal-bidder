@@ -102,7 +102,7 @@ export async function run(): Promise<void> {
   switch (cmd) {
     case "init": {
       const info = initAgentKeys(paths);
-      out({ address: info.address, owner: info.owner, receiptKeyHash: info.receiptKeyHash, publicInfo: paths.publicInfo, next: "pnpm owner register-agent" });
+      out({ address: info.address, owner: info.owner, receiptKeyHash: info.receiptKeyHash, publicInfo: paths.publicInfo, next: "pnpm run owner register-agent" });
       return;
     }
     case "receive": {
