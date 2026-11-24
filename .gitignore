@@ -8,3 +8,8 @@ coverage/
 # Keys, mnemonics and agent state live outside the repository (~/.qore-peal-bidder/).
 *.secret.json
 .qore-peal-bidder/
+
+# Foundry
+contracts/out/
+contracts/cache/
+contracts/broadcast/
