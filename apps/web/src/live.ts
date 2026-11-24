@@ -18,6 +18,8 @@ export interface LiveAgentInfo {
   owner: string;
   receiptPublicKey: string;
   receiptKeyHash: string;
+  /** The owner's vault, once one is deployed. */
+  vault?: string;
 }
 
 export type LiveEvent =
@@ -36,8 +38,8 @@ export type LiveEvent =
       decision: { kind: string; tick?: number; qty?: string; outflow?: string; reason?: string; detail?: string; adjustments?: string[] };
     }
   | { kind: "submission"; seq: number; at: number; mandateHash: string; outflow: string; tick: number }
-  | { kind: "result"; seq: number; at: number; mandateHash: string; status: string; txHash: string | null; reason: string | null; outflow: string; tick: number }
-  | { kind: "claim"; seq: number; at: number; auction: string; bidId: string; allocation: string; status: string; txHash: string | null };
+  | { kind: "result"; seq: number; at: number; mandateHash: string; status: string; txHash: string | null; reason: string | null; outflow: string; tick: number; vault?: string }
+  | { kind: "claim"; seq: number; at: number; auction: string; bidId: string; allocation: string; status: string; txHash: string | null; vault?: string };
 
 export interface LiveLog {
   info: LiveAgentInfo;
@@ -83,6 +85,7 @@ export function toEvents(receipts: Receipt[], pinnedKeyHash: string): LiveEvent[
     const b = r.body;
     const d = obj(b.data);
     const base = { seq: b.seq, at: b.at };
+    const via = typeof d.vault === "string" ? { vault: d.vault } : {};
     if (b.kind === "mandate-accepted" && typeof d.text === "string") {
       let mandate: PealMandateV1;
       try {
@@ -130,6 +133,7 @@ export function toEvents(receipts: Receipt[], pinnedKeyHash: string): LiveEvent[
         reason: typeof d.reason === "string" ? d.reason : null,
         outflow: String(dec.outflow ?? "0"),
         tick: Number(dec.tick ?? 0),
+        ...via,
       });
     } else if (b.kind === "claim") {
       out.push({
@@ -140,6 +144,7 @@ export function toEvents(receipts: Receipt[], pinnedKeyHash: string): LiveEvent[
         allocation: String(d.allocation ?? "0"),
         status: String(d.status ?? ""),
         txHash: typeof d.txHash === "string" ? d.txHash : null,
+        ...via,
       });
     }
   }

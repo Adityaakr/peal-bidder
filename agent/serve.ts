@@ -39,7 +39,7 @@ export interface ServeContext {
   agent: BidderAgent;
   inbox: string;
   /** Claims, when on: where to read outcomes, whose bids, how to send, where to record. */
-  claims?: { client: ClaimsClient; bidder: Address; sender: CallSender; receipts: ReceiptLog };
+  claims?: { client: ClaimsClient; bidder: Address; sender: CallSender; receipts: ReceiptLog; vault?: Address };
   log?: (line: Record<string, unknown>) => void;
   /** True while the owner has paused the agent (agent/control.ts): no planning round, so no bid. */
   paused?: () => boolean;
@@ -81,7 +81,7 @@ export async function tick(ctx: ServeContext): Promise<Tick> {
     for (const a of mandate.auctions) {
       try {
         const o = await auctionOutcome(ctx.claims.client, a, ctx.claims.bidder);
-        const done = await claimAll({ outcome: o, sender: ctx.claims.sender, receipts: ctx.claims.receipts, mandateHash: ctx.agent.state.mandateHash ?? null });
+        const done = await claimAll({ outcome: o, sender: ctx.claims.sender, receipts: ctx.claims.receipts, mandateHash: ctx.agent.state.mandateHash ?? null, ...(ctx.claims.vault ? { vault: ctx.claims.vault } : {}) });
         t.claims.push({ auction: a, state: o.state, claimed: done.filter((d) => d.result.status === "landed").length });
       } catch {
         t.claims.push({ auction: a, state: "unreadable", claimed: 0 });

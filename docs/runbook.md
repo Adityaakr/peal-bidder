@@ -33,6 +33,25 @@ Keys live in `~/.qore-peal-bidder/` (set `QORE_BIDDER_HOME` to move it): `owner/
 | 15 | Owner or agent | `pnpm agent audit --signers qor1<relayer>,qor1<agent-account>` (or `--published` for the published log): each receipt's transaction read through the QoreChain MCP server; exits 1 on a mismatch, a foreign signer or a missing ML-DSA-87 layer | nothing | the receipts log |
 | — | Anyone | `pnpm qore tx get <hash>`, `pnpm qore pq status <hash or address>`: one check by hand, the same tools as the audit | nothing | — |
 
+## The vault (NOT AUDITED, testnet only)
+
+[vault.md](vault.md) explains it. Keys: the owner's, plus a gas account (`owner/vault-gas.env`) that holds gas only.
+
+| # | Command | Sends |
+|---|---|---|
+| V1 | `pnpm run owner vault init` | nothing |
+| V2 | `pnpm run owner vault gas --qor 4` | QOR from the owner to the gas account, and its ML-DSA-87 key |
+| V3 | `pnpm run owner vault deploy` | from the gas account: an unscoped one-transaction window, the deployment, the window's close. Checked against `contracts/BidderVault.artifact.json` |
+| V4 | `pnpm run owner vault policy --auctions 0x… --max-per-bid 100 --daily-limit 210 --budget 300 --max-bids 3 --hours 24 [--operator agent] [--dry-run]` | the owner's ML-DSA-87 signature, carried by the gas account in a window scoped to the vault |
+| V5 | `pnpm run owner vault fund --amount 220 [--from-bank]` | fUSD from the owner to the vault (`--from-bank`: `MsgConvertCoin` straight to the vault) |
+| V6 | `pnpm run owner link --vault 0x… --auctions 0x… --budget 300 --max-per-bid 100 --max-tick 40 --hours 24` | one hybrid transaction: the rule that lists no token the owner holds, and the linked key. Refused if the owner holds any of the listed token |
+| V7 | `pnpm relayer --targets 0x<vault>,0x<auction>`; `pnpm agent run --executor smart-account --vault 0x…`; later `pnpm agent claim --executor smart-account --vault 0x…` | bids from the vault; claims to the vault |
+| V8 | `pnpm demo:vault --check --auction 0x…`, then `pnpm demo:vault --auction 0x… [--scenes …]` | the scenes, with the thief's attempts |
+| V9 | `pnpm run owner vault sweep --token 0x… --all` | the owner's signature; pays the owner |
+| — | `pnpm run owner vault status` / `revoke` / `exit` | read / stop all bidding / the exit 14 days after expiry |
+
+**Do not bid from the vault in an auction that will close until every committee member runs the reader that finds vault bids** (Peal Sealed Auction's pull request 20): an older reader flags the bid, and its bond can burn.
+
 ## The demo run
 
 `pnpm demo:testnet --auction 0x<auction>` plays the owner, the agent and the relayer on one machine (a demo convenience: it reads both folders) and writes `owner/outbox/demo-<time>.json`:

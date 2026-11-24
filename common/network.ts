@@ -40,6 +40,15 @@ export const PQC_KEY_STATUS = "0x0000000000000000000000000000000000000a02" as Ad
 /** The fest token fUSD (6 decimals): ERC-20 contract and its bank denomination. */
 export const FUSD = "0x97143B771D34ddb9130b807b135Ae675A5a963CA" as Address;
 
+/** Peal Sealed Auction's factory on the testnet: the vault bids only in its auctions. */
+export const PEAL_FACTORY = "0x1160ab95b570a65bbadb488c76e2f8515f3d6562" as Address;
+
+/**
+ * The fest's fBTC: the token the vault's spending rule lists, because an empty list means any token.
+ * The owner must hold none of it (checked before the rule is written), and its limit is one base unit.
+ */
+export const FBTC = "0x4604e7e45b2ecdbfbdc157103f5b2b62cb16451a" as Address;
+
 /**
  * Peal Sealed Auction's committee registry on the testnet
  * (`0x95ea32ba3077070a562a9f7ad2e969f231689bae`, its deployments/qorechain-diana.json)

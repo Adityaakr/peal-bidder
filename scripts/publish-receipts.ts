@@ -7,10 +7,10 @@
  * no secret: mandate text, planner output, decisions, transaction hashes.
  * Nothing else from the agent's folder is read.
  */
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { hexToBytes } from "@noble/hashes/utils.js";
-import { agentPaths, bidderHome } from "../common/home.ts";
+import { agentPaths, bidderHome, ownerPaths } from "../common/home.ts";
 import { readAgentPublicInfo } from "../agent/identity.ts";
 import { verifyReceipts } from "../agent/receipts.ts";
 
@@ -20,6 +20,10 @@ const info = readAgentPublicInfo(paths.publicInfo);
 const lines = readFileSync(paths.receipts, "utf8").split("\n").filter((l) => l.length > 0);
 const check = verifyReceipts(lines, hexToBytes(info.receiptPublicKey));
 if (!check.ok) throw new Error(`the receipts log is broken at line ${check.line}: ${check.error}`);
+
+// The vault's address, once the owner has deployed one on this machine (not secret).
+const vaultFile = ownerPaths(home).vault;
+const vault = existsSync(vaultFile) ? (JSON.parse(readFileSync(vaultFile, "utf8")) as { vault: string }).vault : undefined;
 
 const out = join(import.meta.dirname, "..", "apps", "web", "public", "live");
 writeFileSync(join(out, "receipts.jsonl"), `${lines.join("\n")}\n`);
@@ -34,6 +38,7 @@ writeFileSync(
       owner: info.owner,
       receiptPublicKey: info.receiptPublicKey,
       receiptKeyHash: info.receiptKeyHash,
+      ...(vault ? { vault } : {}),
     },
     null,
     2,

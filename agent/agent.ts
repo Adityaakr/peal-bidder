@@ -53,6 +53,8 @@ export interface AgentDeps {
   planners: Planner[];
   reader: AuctionReader;
   executor: BidExecutor;
+  /** The vault the bids go through, recorded in each submission and result. */
+  vault?: string;
   /** Count dry-run submissions against the ledger, so a dry run behaves like the real thing. */
   countDryRuns?: boolean;
 }
@@ -208,7 +210,8 @@ export class BidderAgent {
     if (plan.decision.kind !== "bid") return { kind: "decided", plan };
 
     // Written before anything leaves the agent, so a crash mid-submission is counted on restart.
-    this.deps.receipts.append("submission", hash, { decision: decisionJson(plan.decision) });
+    const via: Record<string, string> = this.deps.vault ? { vault: this.deps.vault.toLowerCase() } : {};
+    this.deps.receipts.append("submission", hash, { decision: decisionJson(plan.decision), ...via });
     let submit: SubmitResult;
     try {
       submit = await this.deps.executor.submit(plan.decision, mandate);
@@ -225,6 +228,7 @@ export class BidderAgent {
       reason: submit.reason ?? null,
       counted,
       decision: decisionJson(plan.decision),
+      ...via,
     });
     return { kind: "decided", plan, submit };
   }

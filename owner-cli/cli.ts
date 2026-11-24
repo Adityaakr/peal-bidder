@@ -15,20 +15,24 @@
  *   pnpm run owner revoke                revoke the agent's key at once
  *   pnpm run owner topup --qor 2 [--slippage-bps 100] [--max-impact-bps 100] [--no-convert] [--dry-run]
  *                                    swap QOR for fUSD on the AMM and convert the minimum out to ERC-20, in one transaction
+ *   pnpm run owner vault init|gas|deploy|policy|fund|status|revoke|sweep|exit
+ *                                    the vault that holds the budget (docs/vault.md; NOT AUDITED, testnet only)
+ *   pnpm run owner link --vault 0x… / rules --vault 0x…   the rule that lists no token the owner holds
  *   pnpm run owner pause|resume [--agent-url http://127.0.0.1:8789]
  *                                    pause or resume the running agent, signed in with Sign In With QoreChain
  *
  * Keys stay in ~/.qore-peal-bidder/owner (QORE_BIDDER_HOME). Nothing is printed but addresses and hashes.
  */
-import { copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { network as kitNetwork } from "qore-pq-kit";
-import type { Hex } from "viem";
+import { network as kitNetwork, publicClient } from "qore-pq-kit";
+import type { Address, Hex } from "viem";
 import { accountAddress, createAccount, exportAgentAccount, loadAccount, qoreSignKeys } from "../common/accounts.ts";
 import { int, list, out, parseFlags, str, units, type Flags } from "../common/cli.ts";
 import { agentPaths, bidderHome, ownerPaths } from "../common/home.ts";
 import { buildMandate, type PealMandateV1 } from "../common/mandate.ts";
-import { FUSD, FUSD_DECIMALS, FUSD_DENOM, network } from "../common/network.ts";
+import { FBTC, FUSD, FUSD_DECIMALS, FUSD_DENOM, PEAL_FACTORY, network } from "../common/network.ts";
+import { parseVaultAddress, readVault } from "../agent/vault.ts";
 import { readAgentPublicInfo, type AgentPublicInfo } from "../agent/identity.ts";
 import { writeOwnerPublic } from "../agent/cli.ts";
 import {
@@ -56,10 +60,14 @@ import {
   selectorOf,
   setRulesMsg,
   spendingRuleFor,
+  vaultRuleFor,
 } from "./smart-account.ts";
+import { approvalsFor, checkDeployed, checkGasAccount, checkUnheld, deployVault, exitVault, revokeVault, setVaultPolicy, sweepVault } from "./vault.ts";
 
 /** Where the rule's limits were each refused on chain, and what they do not bound. */
 const NOTE = "the fUSD limits, the call allowlist and the key expiry were each refused on the testnet (docs/spikes.md); a listed token can also be transferred by the linked key, within the limits (THREAT_MODEL.md)";
+
+const VAULT_NOTE = "the rule lists no token the owner holds: the linked key can call vault.bid and claim, and cannot transfer or approve fUSD. The vault is new code and not audited (docs/vault.md, THREAT_MODEL.md)";
 
 /** Build a mandate from command-line flags. Amounts are whole fUSD; times are hours from `now`. */
 export function mandateFromFlags(flags: Flags, ctx: { owner: string; info: AgentPublicInfo; now: number }): PealMandateV1 {
@@ -210,7 +218,17 @@ export async function run(): Promise<void> {
       const info = readAgentPublicInfo(ag.publicInfo);
       const mandate = mandateFromFlags(flags, { owner: owner.cosmos, info, now: Math.floor(Date.now() / 1000) });
       const daily = flags["daily-limit"] ? units(flags, "daily-limit", FUSD_DECIMALS) : undefined;
-      const rule = spendingRuleFor(mandate, commitBidSelector(flags), daily === undefined ? {} : { dailyLimit: daily });
+      const vault = flags.vault === undefined ? undefined : parseVaultAddress(str(flags, "vault"));
+      const note = vault ? VAULT_NOTE : NOTE;
+      let rule;
+      if (vault) {
+        if (daily !== undefined) throw new Error("with --vault the daily limit is the vault's: pnpm run owner vault policy --daily");
+        const unheldToken = str(flags, "unheld-token", FBTC) as Address;
+        await checkUnheld(unheldToken, owner);
+        rule = vaultRuleFor({ vault, auctions: mandate.auctions, unheldToken, quoteToken: mandate.quoteToken });
+      } else {
+        rule = spendingRuleFor(mandate, commitBidSelector(flags), daily === undefined ? {} : { dailyLimit: daily });
+      }
       let msgs;
       if (cmd === "link") {
         const agentAccount = await loadAccount(op.agentAccount);
@@ -225,10 +243,14 @@ export async function run(): Promise<void> {
         msgs = [setRulesMsg(owner.cosmos, [rule])];
       }
       if (flags["dry-run"] === true) {
-        out({ note: NOTE, rule, messages: msgs.map((m) => m.typeUrl) });
+        out({ note, rule, messages: msgs.map((m) => m.typeUrl) });
         return;
       }
-      out({ note: NOTE, rule, tx: await sendOwnerMsgs(owner, msgs) });
+      out({ note, rule, tx: await sendOwnerMsgs(owner, msgs) });
+      return;
+    }
+    case "vault": {
+      await vaultCommand(sub, flags, op);
       return;
     }
     case "revoke": {
@@ -278,7 +300,105 @@ export async function run(): Promise<void> {
       return;
     }
     default:
-      throw new Error("usage: pnpm run owner init|status|register|register-agent|mandate|window|convert|approve|fund-agent|link|rules|revoke|topup|pause|resume");
+      throw new Error("usage: pnpm run owner init|status|register|register-agent|mandate|window|convert|approve|fund-agent|link|rules|revoke|vault|topup|pause|resume");
+  }
+}
+
+/** `pnpm run owner vault …`: each prints addresses and transaction hashes only. */
+async function vaultCommand(sub: string | undefined, flags: Flags, op: ReturnType<typeof ownerPaths>): Promise<void> {
+  const owner = accountAddress(op.owner);
+  const ownerEvm = owner.evm as Address;
+  const vaultAddress = (): Address =>
+    parseVaultAddress(typeof flags.vault === "string" ? flags.vault : existsSync(op.vault) ? (JSON.parse(readFileSync(op.vault, "utf8")) as { vault: string }).vault : str(flags, "vault"));
+  switch (sub) {
+    case "init": {
+      const gas = existsSync(op.vaultGas) ? accountAddress(op.vaultGas) : await createAccount(op.vaultGas, "vault gas account (deploys the vault, carries signed actions; gas only)");
+      out({ vaultGas: gas, next: "pnpm run owner vault gas --qor 4" });
+      return;
+    }
+    case "gas": {
+      // Native QOR from the owner, then the gas account's own ML-DSA-87 key: its windows need one.
+      const gas = await loadAccount(op.vaultGas);
+      const amount = units(flags, "qor", 6, "4");
+      const sent = await sendOwnerMsgs(await loadAccount(op.owner), [
+        { typeUrl: "/cosmos.bank.v1beta1.MsgSend", value: { fromAddress: owner.cosmos, toAddress: gas.cosmos, amount: [{ denom: "uqor", amount: amount.toString() }] } },
+      ]);
+      out({ vaultGas: gas.cosmos, sent, registered: (await registerPqKey(gas)) ?? "already registered" });
+      return;
+    }
+    case "deploy": {
+      if (existsSync(op.vault) && flags.again !== true) throw new Error(`${op.vault} already names a vault; --again deploys another`);
+      const gas = await loadAccount(op.vaultGas);
+      const args = { owner: ownerEvm, quote: str(flags, "quote-token", FUSD) as Address, factory: str(flags, "factory", PEAL_FACTORY) as Address };
+      await checkGasAccount(gas, owner.cosmos, [args.quote]);
+      const r = await deployVault(gas, args);
+      writeFileSync(op.vault, `${JSON.stringify({ vault: r.vault, ...args, txs: r.txs }, null, 2)}\n`, { mode: 0o644 });
+      out({ ...r, audited: false, next: "pnpm run owner vault policy …, then vault fund" });
+      return;
+    }
+    case "policy": {
+      const gas = await loadAccount(op.vaultGas);
+      const vault = vaultAddress();
+      await checkGasAccount(gas, owner.cosmos, [FUSD]);
+      const v = await checkDeployed(vault, { owner: ownerEvm, quote: FUSD, factory: str(flags, "factory", PEAL_FACTORY) as Address });
+      const client = publicClient();
+      const approvals = await approvalsFor(client, list(flags, "auctions") as Address[], v.factory, v.quote);
+      const policy = {
+        // Smart-account lane: the linked key acts as the owner's 0x address. Window lane: --operator agent.
+        operator: (flags.operator === "agent" ? accountAddress(op.agentAccount).evm : ownerEvm) as Address,
+        expiresAt: (await client.getBlock()).timestamp + BigInt(int(flags, "hours", 24)) * 3600n,
+        maxBids: int(flags, "max-bids", 3),
+        maxPerBid: units(flags, "max-per-bid", FUSD_DECIMALS),
+        dailyLimit: units(flags, "daily-limit", FUSD_DECIMALS, str(flags, "budget")),
+        budget: units(flags, "budget", FUSD_DECIMALS),
+      };
+      if (flags["dry-run"] === true) {
+        out({ dryRun: true, vault, policy, approvals });
+        return;
+      }
+      out({ vault, policy, approvals, txs: await setVaultPolicy(await loadAccount(op.owner), gas, vault, policy, approvals) });
+      return;
+    }
+    case "fund": {
+      const vault = vaultAddress();
+      const v = await checkDeployed(vault, { owner: ownerEvm, quote: FUSD, factory: str(flags, "factory", PEAL_FACTORY) as Address });
+      const amount = units(flags, "amount", FUSD_DECIMALS);
+      const acc = await loadAccount(op.owner);
+      const txs = flags["from-bank"] === true ? [await convertQuote(acc, FUSD_DENOM, amount, vault)] : await transferQuote(acc, FUSD, vault, amount);
+      out({ vault, before: v.balance, after: await erc20Balance(FUSD, vault), txs });
+      return;
+    }
+    case "status": {
+      const vault = vaultAddress();
+      const v = await readVault(publicClient(), vault);
+      let code = "the committed artifact";
+      try {
+        await checkDeployed(vault, { owner: v.owner, quote: v.quote, factory: v.factory });
+      } catch (err) {
+        code = (err as Error).message;
+      }
+      out({ ...v, code, audited: false });
+      return;
+    }
+    case "revoke": {
+      const vault = vaultAddress();
+      out({ vault, txs: await revokeVault(await loadAccount(op.owner), await loadAccount(op.vaultGas), vault), next: "also: pnpm run owner revoke (the agent's linked key)" });
+      return;
+    }
+    case "sweep": {
+      const vault = vaultAddress();
+      const token = str(flags, "token", FUSD) as Address;
+      const amount = flags.all === true ? await erc20Balance(token, vault) : units(flags, "amount", int(flags, "decimals", FUSD_DECIMALS));
+      out({ vault, token, amount, to: owner.evm, txs: await sweepVault(await loadAccount(op.owner), await loadAccount(op.vaultGas), vault, token, amount) });
+      return;
+    }
+    case "exit": {
+      const vault = vaultAddress();
+      out({ vault, txs: await exitVault(await loadAccount(op.vaultGas), vault, str(flags, "token", FUSD) as Address) });
+      return;
+    }
+    default:
+      throw new Error("usage: pnpm run owner vault init|gas|deploy|policy|fund|status|revoke|sweep|exit");
   }
 }
 

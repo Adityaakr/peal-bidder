@@ -10,7 +10,10 @@
  */
 import { AUCTION_REPO, KIT, REPO, TENDER } from "../config.ts";
 import { attackMap, keyMap, problemPanels, sequence } from "../art/diagrams.ts";
-import { spendingRules } from "../chain.ts";
+import type { Address } from "viem";
+import { evm, spendingRules } from "../chain.ts";
+import { readVault } from "../../../../agent/vault.ts";
+import { ruleMeaning } from "../rule.ts";
 import { loadLive, type LiveLog } from "../live.ts";
 import { amount, h, icon, mark, onceVisible, type Child } from "../ui.ts";
 
@@ -200,12 +203,19 @@ function proofBar(): HTMLElement {
   const ruleSub = h("span.caption", "per bid, read live");
   spendingRules(LIVE_OWNER)
     .then((rules) => {
-      const r = rules?.find((x) => x.enabled) ?? rules?.[0];
-      const lim = r?.denomLimits[0];
-      const per = lim?.per_tx_limit ?? lim?.perTxLimit;
-      const day = lim?.daily_limit ?? lim?.dailyLimit;
+      const m = ruleMeaning(rules);
+      if (m.kind === "vault") {
+        rule.replaceChildren("0", h("span.unit", " fUSD"));
+        ruleSub.textContent = "the key can move none: bids come from the vault · read live";
+        return readVault(evm, m.vault as Address).then((v) => {
+          ruleSub.textContent = `the key can move none; the vault allows ${amount(v.policy.maxPerBid, 6)} a bid · read live`;
+        }, () => undefined);
+      }
+      const per = m.kind === "budget" ? m.perBid : undefined;
+      const day = m.kind === "budget" ? m.daily : undefined;
       rule.replaceChildren(per ? `${amount(BigInt(per), 6)}` : "none", h("span.unit", " fUSD"));
       ruleSub.textContent = day ? `per bid, ${amount(BigInt(day), 6)} a day · read live` : "read live";
+      return undefined;
     })
     .catch(() => rule.replaceChildren("unavailable"));
   loadLive()
@@ -376,7 +386,7 @@ function security(): HTMLElement {
       h(
         "p.atk-note",
         h("strong", "The residual risk, in full. "),
-        "The chain counts the auction's escrow pull as a token transfer, so a rule that lets the agent bid must list fUSD, and a stolen agent key can then move fUSD within the same limits: 100 a bid and the day's limit, to an address of its choice. This was tested live; the bound and the mitigations are in the ",
+        "In both live runs the budget sat on the owner's account. The chain counts the auction's escrow pull as a token transfer, so while it sits there a rule that lets the agent bid must list fUSD, and a stolen agent key can then move fUSD within the same limits: 100 a bid and the day's limit, to an address of its choice. This was tested live; the bound, the mitigations and the vault built to close it (tested locally, not yet used on the testnet, not audited) are in the ",
         h("a", { href: `${REPO}/blob/main/THREAT_MODEL.md`, target: "_blank", rel: "noopener" }, "threat model"),
         ".",
       ),

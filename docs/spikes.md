@@ -107,6 +107,8 @@ Afterwards the owner holds 33 PEAL-T. Its ERC-20 fUSD went from 199 to 366: each
 
 ### 2026-11-16 (UTC): can the transfer finding be tightened? No
 
+**Correction, 24 November 2026:** not *while the budget sits on the owner's account*, which is what this test shows. With the budget in a contract the rule need not list fUSD, because the bid is then no transfer from the account. The vault ([vault.md](vault.md)) is built for that and has not bid on the testnet yet.
+
 **Setup:** a second Bidder demo auction, `0xE5fC1b2Fc5dE7EeB39620915bE9C1037467aBe76` (bidding until 11:25 UTC). The owner approved 100 fUSD to it, in three transactions: `A178F12D…EFA0`, `0x2c81bd23…7938`, `E7DD3945…4628`.
 
 **The test:** a temporary rule variant left fUSD out of `allowed_denoms`. It allowed only `uqor` with a 1 uqor cap, and kept the same `commitBid` and `claim` allowlist.

@@ -5,7 +5,9 @@
  */
 import type { Address } from "viem";
 import { FUSD, FUSD_DECIMALS, REPO } from "../config.ts";
-import { auctionSummary, cosmosTx, pqKeyState, spendingRules } from "../chain.ts";
+import { readVault } from "../../../../agent/vault.ts";
+import { auctionSummary, cosmosTx, evm, pqKeyState, spendingRules } from "../chain.ts";
+import { ruleMeaning } from "../rule.ts";
 import { loadLive, type LiveEvent, type LiveLog } from "../live.ts";
 import { amount, chip, dateTime, errorText, fingerprint, h, hash, icon, kicker, timeOnly, type Child } from "../ui.ts";
 import type { PealMandateV1 } from "../../../../common/mandate.ts";
@@ -75,12 +77,12 @@ function eventItem(e: LiveEvent): HTMLElement | null {
     case "submission":
       return null;
     case "result":
-      if (e.status === "landed") return item("ok", "check", e.at, h("span", `Bid landed: ${fusd(e.outflow)} at tick ${e.tick}`), e.txHash ? txLink(e.txHash) : null);
+      if (e.status === "landed") return item("ok", "check", e.at, h("span", `Bid landed${e.vault ? " from the vault" : ""}: ${fusd(e.outflow)} at tick ${e.tick}`), e.txHash ? txLink(e.txHash) : null);
       if (e.status === "refused")
-        return item("bad", "shield", e.at, h("span", "Refused by the chain ", chip(/^execution reverted/.test(e.reason ?? "") ? "call reverted" : "spending rule", "bad")), h("p.tl-text", (e.reason ?? "").split(":")[0] ?? ""), e.txHash ? txLink(e.txHash) : null, h("p.tl-note", "The transaction was included, its call was refused, and nothing moved. The agent counts it and moves on."));
+        return item("bad", "shield", e.at, h("span", "Refused by the chain ", chip(/^execution reverted/.test(e.reason ?? "") ? (e.vault ? "vault or auction reverted" : "call reverted") : "spending rule", "bad")), h("p.tl-text", (e.reason ?? "").split(":")[0] ?? ""), e.txHash ? txLink(e.txHash) : null, h("p.tl-note", "The transaction was included, its call was refused, and nothing moved. The agent counts it and moves on."));
       return item("plain", "clock", e.at, h("span", `Bid ${e.status}`), e.reason ? h("p.tl-text", e.reason) : null);
     case "claim":
-      return item("ok", "check", e.at, h("span", `Claimed bid ${e.bidId}: ${pealt(e.allocation)} won`), e.txHash ? txLink(e.txHash) : null);
+      return item("ok", "check", e.at, h("span", `Claimed bid ${e.bidId}${e.vault ? " to the vault" : ""}: ${pealt(e.allocation)} won`), e.txHash ? txLink(e.txHash) : null);
     default:
       return null;
   }
@@ -126,20 +128,33 @@ function chainState(l: LiveLog): HTMLElement {
   const rule = h("dd", chip("reading…", "plain", "refresh"));
   spendingRules(owner)
     .then((rules) => {
-      const r = rules?.find((x) => x.enabled) ?? rules?.[0];
-      if (!r) return rule.replaceChildren(chip("no spending rule", "warn"));
-      const lim = r.denomLimits[0];
-      const per = lim?.per_tx_limit ?? lim?.perTxLimit;
-      const day = lim?.daily_limit ?? lim?.dailyLimit;
-      rule.replaceChildren(
-        h(
-          "div.rule",
-          h("span", per ? `${fusd(per)} per bid` : `per-tx ${r.perTxLimit}`, day ? `, ${fusd(day)} a day` : ""),
-          h("span.caption", `${r.allowedDenoms.map((d) => (d.toLowerCase().endsWith(FUSD.toLowerCase()) ? "fUSD" : d)).join(", ") || "any denom"} only · ${r.allowedEvmCalls.length} allowed call${r.allowedEvmCalls.length === 1 ? "" : "s"}`),
-        ),
-      );
+      const m = ruleMeaning(rules);
+      if (m.kind === "none") return rule.replaceChildren(chip("no spending rule", "warn"));
+      const calls = `${m.calls} allowed call${m.calls === 1 ? "" : "s"}`;
+      if (m.kind === "vault") {
+        rule.replaceChildren(h("div.rule", h("span", "No fUSD: the key may only call the vault's bid, and claim"), h("span.caption", `lists one token the owner does not hold, because an empty list would mean any token · ${calls}`)));
+      } else if (m.kind === "budget") {
+        rule.replaceChildren(h("div.rule", h("span", m.perBid ? `${fusd(m.perBid)} per bid` : "no per-bid limit", m.daily ? `, ${fusd(m.daily)} a day` : ""), h("span.caption", `fUSD only · ${calls}`)));
+      } else rule.replaceChildren(h("div.rule", h("span", m.denoms.join(", ") || "any denom"), h("span.caption", calls)));
     })
     .catch((e) => rule.replaceChildren(chip(errorText(e), "warn")));
+  const vault = h("dd", chip("reading…", "plain", "refresh"));
+  if (l.info.vault) {
+    const address = l.info.vault as Address;
+    readVault(evm, address)
+      .then((v) => {
+        const open = v.remaining.bids > 0n;
+        vault.replaceChildren(
+          hash(address, { label: "vault" }),
+          h(
+            "div.rule",
+            h("span", `${fusd(v.balance.toString())} held`, open ? ` · ${fusd(v.policy.maxPerBid.toString())} per bid, ${fusd(v.remaining.today.toString())} left today` : " · no bid allowed now"),
+            h("span.caption", `${v.approvedAuctions.length} approved auction${v.approvedAuctions.length === 1 ? "" : "s"} · policy ${v.epoch} · withdrawals need the owner's ML-DSA-87 signature · not audited`),
+          ),
+        );
+      })
+      .catch((e) => vault.replaceChildren(chip(errorText(e), "warn")));
+  }
   const auctions = [...new Set(l.events.flatMap((e) => (e.kind === "mandate-accepted" ? e.mandate.auctions : [])))];
   const auc = h("dd.auction-states");
   for (const a of auctions) {
@@ -162,6 +177,7 @@ function chainState(l: LiveLog): HTMLElement {
       h("dd", hash(l.info.address, { label: "agent" }), " ", hash(l.info.evm, { label: "agent EVM address" })),
       h("dt", "Spending rule"),
       rule,
+      ...(l.info.vault ? [h("dt", "Vault"), vault] : []),
       h("dt", "Auctions"),
       auc,
     ),

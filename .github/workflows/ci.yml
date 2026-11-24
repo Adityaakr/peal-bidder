@@ -23,6 +23,30 @@ jobs:
       # No ANTHROPIC_API_KEY here: the live planner tests are skipped and nothing is spent.
       - run: pnpm test
 
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+      # Foundry's libraries (forge-std, OpenZeppelin, qore-pq-kit) come from the lockfile too.
+      - run: pnpm install --frozen-lockfile
+      - run: forge fmt --check
+        working-directory: contracts
+      - run: forge build --sizes --skip test
+        working-directory: contracts
+      - run: pnpm vault:artifact --check
+      - run: forge test -vvv
+        working-directory: contracts
+        env:
+          FOUNDRY_PROFILE: ci
+
   web:
     # Playwright's headless shell does not support ubuntu-latest (26.04) yet; 24.04 is supported.
     runs-on: ubuntu-24.04

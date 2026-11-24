@@ -27,7 +27,9 @@
     "web:smoke": "tsx scripts/web-smoke.ts",
     "qore": "qore",
     "record:mcp-audit": "tsx scripts/record-mcp-audit.ts",
-    "cbom": "tsx scripts/cbom.ts"
+    "cbom": "tsx scripts/cbom.ts",
+    "vault:artifact": "tsx scripts/vault-artifact.ts",
+    "demo:vault": "tsx scripts/demo-vault.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "1.8.0",
@@ -49,8 +51,10 @@
     "viem": "2.57.20"
   },
   "devDependencies": {
+    "@openzeppelin/contracts": "5.4.0",
     "@types/node": "22.18.0",
     "fast-check": "4.10.2",
+    "forge-std": "github:foundry-rs/forge-std#v1.11.0",
     "playwright-core": "1.56.1",
     "tsx": "4.20.6",
     "typescript": "5.9.3",

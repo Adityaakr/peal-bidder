@@ -15,6 +15,8 @@
  *                                           QoreChain, on 127.0.0.1 (agent/control.ts)
  *   pnpm agent bids [--path smart-account|window]       the agent's bids on the mandate's auctions, from the chain
  *   pnpm agent claim --executor smart-account|window    claim every unclaimed bid of a finished auction
+ *   --vault 0x<BidderVault> on run, serve, bids and claim: the owner's vault holds the budget and is the bidder
+ *                                           (agent/vault.ts); the account only calls it
  *   pnpm agent receipts                     verify the receipts log
  *   pnpm agent audit [--signers qor1..,qor1..] [--published]
  *                                           check the receipts against the chain through the QoreChain MCP
@@ -50,6 +52,7 @@ import { defaultPlanners, type Planner } from "./planner/index.ts";
 import { ReceiptLog, verifyReceipts } from "./receipts.ts";
 import { FileSink } from "./receipt-file.ts";
 import { FileMandateStore } from "./store.ts";
+import { parseVaultAddress } from "./vault.ts";
 
 type AgentPaths = ReturnType<typeof agentPaths>;
 
@@ -63,7 +66,7 @@ function keySource(paths: AgentPaths, offline: boolean): PqKeySource {
 
 export function buildAgent(
   paths: AgentPaths,
-  opts: { offline?: boolean; auctions?: string; factory?: string; planners?: Planner[]; executor?: BidExecutor } = {},
+  opts: { offline?: boolean; auctions?: string; factory?: string; planners?: Planner[]; executor?: BidExecutor; vault?: Address } = {},
 ) {
   const id = loadAgentIdentity(paths);
   const now = () => Math.floor(Date.now() / 1000);
@@ -89,6 +92,7 @@ export function buildAgent(
     planners,
     reader,
     executor,
+    ...(opts.vault ? { vault: opts.vault } : {}),
     countDryRuns: executor instanceof DryRunExecutor,
   });
   return { agent, id, executor, planners };
@@ -98,6 +102,8 @@ export async function run(): Promise<void> {
   const [cmd] = process.argv.slice(2);
   const { flags } = parseFlags(process.argv.slice(3));
   const paths = agentPaths(bidderHome());
+  const vault = flags.vault === undefined ? undefined : parseVaultAddress(str(flags, "vault"));
+  const via = vault ? { vault } : {};
 
   switch (cmd) {
     case "init": {
@@ -122,6 +128,7 @@ export async function run(): Promise<void> {
       const executor = await makeExecutor(kind, {
         id,
         net,
+        ...via,
         ...(typeof flags["relayer-url"] === "string" ? { relayerUrl: flags["relayer-url"] } : {}),
         ...(typeof flags.gas === "string" ? { gasLimit: BigInt(int(flags, "gas")) } : {}),
       });
@@ -131,13 +138,15 @@ export async function run(): Promise<void> {
         ...(typeof flags.auctions === "string" ? { auctions: flags.auctions } : {}),
         ...(typeof flags.factory === "string" ? { factory: flags.factory } : {}),
         executor,
+        ...via,
       });
       let claims: Parameters<typeof serve>[0]["claims"];
       if (flags.claim === true) {
         if (kind === "dry-run" || !executor.sendCall) throw new Error("--claim needs --executor smart-account or window");
         claims = {
           client: createPublicClient({ transport: http(net.evmRpc) }),
-          bidder: bidderFor(kind, id),
+          bidder: bidderFor(kind, id, vault),
+          ...via,
           sender: executor as CallSender,
           receipts: new ReceiptLog(new FileSink(paths.receipts), id.receiptKey, id.account.cosmos),
         };
@@ -162,6 +171,7 @@ export async function run(): Promise<void> {
           serving: id.account.cosmos,
           owner: id.account.owner,
           executor: kind,
+          ...via,
           claims: Boolean(claims),
           paused: control.paused,
           control: controlPort === undefined ? null : `http://127.0.0.1:${controlPort}/siwq`,
@@ -185,6 +195,7 @@ export async function run(): Promise<void> {
       const executor = await makeExecutor(kind, {
         id: loadAgentIdentity(paths),
         net: network(),
+        ...via,
         ...(typeof flags["relayer-url"] === "string" ? { relayerUrl: flags["relayer-url"] } : {}),
         ...(typeof flags.gas === "string" ? { gasLimit: BigInt(int(flags, "gas")) } : {}),
       });
@@ -192,6 +203,7 @@ export async function run(): Promise<void> {
         ...(typeof flags.auctions === "string" ? { auctions: flags.auctions } : {}),
         ...(typeof flags.factory === "string" ? { factory: flags.factory } : {}),
         executor,
+        ...via,
       });
       if (readControlState(paths.control).paused) {
         throw new Error("the owner has paused this agent (Sign In With QoreChain); it places no bid until the owner resumes it");
@@ -213,7 +225,7 @@ export async function run(): Promise<void> {
         );
         if (i + 1 < rounds) await new Promise((r) => setTimeout(r, interval * 1000));
       }
-      out({ executor: kind, auctions: typeof flags.auctions === "string" ? flags.auctions : "chain", planners: planners.map((p) => p.name), log });
+      out({ executor: kind, ...via, auctions: typeof flags.auctions === "string" ? flags.auctions : "chain", planners: planners.map((p) => p.name), log });
       return;
     }
     case "bids":
@@ -227,7 +239,7 @@ export async function run(): Promise<void> {
       const mandate = agent.state.mandate;
       if (!mandate) throw new Error("no mandate: nothing to look up");
       const client = createPublicClient({ transport: http(net.evmRpc) });
-      const bidder = bidderFor(kind, id);
+      const bidder = bidderFor(kind, id, vault);
       const outcomes = [];
       for (const a of mandate.auctions) outcomes.push(await auctionOutcome(client, a, bidder));
       if (cmd === "bids") {
@@ -237,13 +249,14 @@ export async function run(): Promise<void> {
       const executor = await makeExecutor(kind, {
         id,
         net,
+        ...via,
         ...(typeof flags["relayer-url"] === "string" ? { relayerUrl: flags["relayer-url"] } : {}),
       });
       if (!executor.sendCall) throw new Error("this executor cannot send claims");
       const sink = new FileSink(paths.receipts);
       const receipts = new ReceiptLog(sink, id.receiptKey, id.account.cosmos);
       const claims = [];
-      for (const o of outcomes) claims.push({ auction: o.auction, state: o.state, claims: await claimAll({ outcome: o, sender: executor as CallSender, receipts, mandateHash: agent.state.mandateHash ?? null }) });
+      for (const o of outcomes) claims.push({ auction: o.auction, state: o.state, claims: await claimAll({ outcome: o, sender: executor as CallSender, receipts, mandateHash: agent.state.mandateHash ?? null, ...via }) });
       out({ bidder, claims });
       return;
     }
